@@ -44,6 +44,30 @@ class OotdBackupPreview {
   final String exportedAt;
   final String appVersion;
   final int backupFormatVersion;
+
+  OotdBackupPreview copyWith({
+    String? zipPath,
+    String? fileName,
+    String? directoryPath,
+    int? itemCount,
+    int? ootdImageCount,
+    int? imageCount,
+    String? exportedAt,
+    String? appVersion,
+    int? backupFormatVersion,
+  }) {
+    return OotdBackupPreview(
+      zipPath: zipPath ?? this.zipPath,
+      fileName: fileName ?? this.fileName,
+      directoryPath: directoryPath ?? this.directoryPath,
+      itemCount: itemCount ?? this.itemCount,
+      ootdImageCount: ootdImageCount ?? this.ootdImageCount,
+      imageCount: imageCount ?? this.imageCount,
+      exportedAt: exportedAt ?? this.exportedAt,
+      appVersion: appVersion ?? this.appVersion,
+      backupFormatVersion: backupFormatVersion ?? this.backupFormatVersion,
+    );
+  }
 }
 
 class OotdImportedSnapshot {
@@ -99,7 +123,7 @@ class OotdBackupService {
     required List<MockOotdItem> items,
     required OotdFilterState filters,
     required OotdOptionConfig options,
-    String filePrefix = '穿搭备份',
+    String filePrefix = 'ootd_backup',
     OotdBackupKind backupKind = OotdBackupKind.export,
   }) async {
     final prepared = await _prepareExportPayload(
@@ -159,31 +183,14 @@ class OotdBackupService {
   }
 
   Future<OotdBackupPreview?> loadLatestExportPreview() async {
-    final directory = await _backupDirectory(OotdBackupKind.export);
-    if (!await directory.exists()) {
-      return null;
+    final rememberedPath = await store.loadLastExportZipPath();
+    if (rememberedPath != null && await File(rememberedPath).exists()) {
+      try {
+        return await readBackupPreview(rememberedPath);
+      } catch (_) {}
     }
 
-    final zipFiles = await directory
-        .list()
-        .where(
-          (entity) => entity is File && p.extension(entity.path).toLowerCase() == '.zip',
-        )
-        .cast<File>()
-        .toList();
-    if (zipFiles.isEmpty) {
-      return null;
-    }
-
-    zipFiles.sort(
-      (left, right) => right.lastModifiedSync().compareTo(left.lastModifiedSync()),
-    );
-
-    try {
-      return await readBackupPreview(zipFiles.first.path);
-    } catch (_) {
-      return null;
-    }
+    return null;
   }
 
   Future<OotdBackupPreview> readBackupPreview(String zipPath) async {
@@ -201,7 +208,7 @@ class OotdBackupService {
       items: currentItems,
       filters: currentFilters,
       options: currentOptions,
-      filePrefix: '自动回滚备份',
+      filePrefix: 'rollback_backup',
       backupKind: OotdBackupKind.rollback,
     );
 
@@ -420,12 +427,14 @@ class OotdBackupService {
   }
 
   Future<Directory> _backupDirectory(OotdBackupKind backupKind) async {
-    final dataDirectoryPath = await store.dataDirectoryPath();
-    final directoryName = switch (backupKind) {
-      OotdBackupKind.export => 'backup_exports',
-      OotdBackupKind.rollback => 'backup_rollbacks',
+    return switch (backupKind) {
+      OotdBackupKind.export => store.exportBackupDirectory(),
+      OotdBackupKind.rollback => store.rollbackBackupDirectory(),
     };
-    return Directory(p.join(dataDirectoryPath, directoryName));
+  }
+
+  Future<void> rememberLastExportZipPath(String path) {
+    return store.saveLastExportZipPath(path);
   }
 
   String _timestampLabel(DateTime value) {

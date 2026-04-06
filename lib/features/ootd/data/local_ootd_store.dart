@@ -116,6 +116,32 @@ class OotdLocalStore {
     await file.writeAsString(jsonEncode(options));
   }
 
+  Future<String?> loadLastExportZipPath() async {
+    final file = await _backupMetaFile();
+    if (!await file.exists()) {
+      return null;
+    }
+
+    final content = await file.readAsString();
+    if (content.trim().isEmpty) {
+      return null;
+    }
+
+    final decoded = jsonDecode(content);
+    if (decoded is! Map) {
+      return null;
+    }
+
+    final path = decoded['lastExportZipPath'];
+    return path is String && path.trim().isNotEmpty ? path : null;
+  }
+
+  Future<void> saveLastExportZipPath(String path) async {
+    final file = await _backupMetaFile();
+    await file.parent.create(recursive: true);
+    await file.writeAsString(jsonEncode({'lastExportZipPath': path}));
+  }
+
   Future<String> savePickedImage(XFile pickedFile) async {
     final imagesDir = await _imagesDirectory();
     return _copyPickedImage(pickedFile, imagesDir, filePrefix: 'ootd_');
@@ -124,6 +150,23 @@ class OotdLocalStore {
   Future<String> dataDirectoryPath() async {
     final directory = await _dataDirectory();
     return directory.path;
+  }
+
+  Future<Directory> exportBackupDirectory() async {
+    if (Platform.isAndroid) {
+      final externalDirectory = await getExternalStorageDirectory();
+      if (externalDirectory != null) {
+        return Directory(p.join(externalDirectory.path, 'backups', 'export'));
+      }
+    }
+
+    final dataDirectory = await _dataDirectory();
+    return Directory(p.join(dataDirectory.path, 'backup_exports'));
+  }
+
+  Future<Directory> rollbackBackupDirectory() async {
+    final dataDirectory = await _dataDirectory();
+    return Directory(p.join(dataDirectory.path, 'backup_rollbacks'));
   }
 
   Future<File> _itemsFile() async {
@@ -139,6 +182,11 @@ class OotdLocalStore {
   Future<File> _optionsFile() async {
     final directory = await _dataDirectory();
     return File(p.join(directory.path, 'ootd_options.json'));
+  }
+
+  Future<File> _backupMetaFile() async {
+    final directory = await _dataDirectory();
+    return File(p.join(directory.path, 'ootd_backup_meta.json'));
   }
 
   Future<Directory> _imagesDirectory() async {

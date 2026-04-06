@@ -15,7 +15,7 @@ Future<void> bootstrap() async {
   final optionsJson = await store.loadOptionsJson();
 
   final initialItems = itemsJson == null
-      ? defaultMockOotdItems
+      ? const <MockOotdItem>[]
       : itemsJson.map(MockOotdItem.fromJson).toList(growable: false);
   final normalizedStoredItems = normalizeItemsForStorageRoot(
     initialItems,

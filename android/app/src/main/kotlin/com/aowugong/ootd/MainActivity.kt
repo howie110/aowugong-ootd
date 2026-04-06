@@ -1,4 +1,4 @@
-package com.example.aowugong_ootd
+package com.aowugong.ootd
 
 import io.flutter.embedding.android.FlutterActivity
 

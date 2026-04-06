@@ -9,7 +9,7 @@ class DailyOotdApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '穿搭',
+      title: '每日穿搭',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       scrollBehavior: const AppScrollBehavior(),

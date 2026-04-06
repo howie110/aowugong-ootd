@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
@@ -43,7 +46,8 @@ class _BackupExportPageState extends ConsumerState<BackupExportPage> {
             title: '导出说明',
             lines: [
               '会把当前数据打包成一个 zip 备份文件。',
-              '生成后会直接弹出系统分享面板，你可以发送到新手机。',
+              '生成后会弹出系统另存为窗口，请自己选择 zip 保存目录。',
+              '建议直接保存到 Download，这样最容易找到。',
               'zip 内包含 manifest.json、ootd 数据和本地目录里的图片文件。',
             ],
           ),
@@ -84,18 +88,44 @@ class _BackupExportPageState extends ConsumerState<BackupExportPage> {
   Future<void> _exportBackup() async {
     setState(() => _busy = true);
     try {
-      final preview = await _backupService.exportBackup(
+      final temporaryPreview = await _backupService.exportBackup(
         items: ref.read(ootdItemsProvider),
         filters: ref.read(ootdFiltersProvider),
         options: ref.read(ootdOptionConfigProvider),
+      );
+      final bytes = await File(temporaryPreview.zipPath).readAsBytes();
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: '选择 zip 保存位置',
+        fileName: temporaryPreview.fileName,
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
+        bytes: bytes,
       );
 
       if (!mounted) {
         return;
       }
 
+      if (savedPath == null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('已取消选择保存位置')));
+        return;
+      }
+
+      await _backupService.rememberLastExportZipPath(savedPath);
+      if (!mounted) {
+        return;
+      }
+      final preview = temporaryPreview.copyWith(
+        zipPath: savedPath,
+        directoryPath: File(savedPath).parent.path,
+      );
+
       setState(() => _lastPreview = preview);
-      await _shareBackup();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('zip 备份文件已保存')));
     } catch (error) {
       if (!mounted) {
         return;

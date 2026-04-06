@@ -190,7 +190,7 @@ class _ImportGuideCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '请选择旧手机导出的 zip 备份文件。导入前会先解析 manifest.json，并显示穿搭数量、图片数量和 zip 路径。',
+            '请选择之前导出的 zip 备份文件。通常你会把它保存在 Download 或其他可见目录。',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               height: 1.45,
