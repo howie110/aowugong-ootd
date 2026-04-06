@@ -1146,10 +1146,6 @@ final filteredOotdItemsProvider = Provider<List<MockOotdItem>>((ref) {
   final items = ref.watch(ootdItemsProvider);
   final optionConfig = ref.watch(ootdOptionConfigProvider);
 
-  if (!filters.hasAnySelection) {
-    return const [];
-  }
-
   return items
       .where((item) {
         final preferenceMatch =

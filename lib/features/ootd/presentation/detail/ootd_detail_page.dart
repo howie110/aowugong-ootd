@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../home/mock_ootd_items.dart';
+import 'photo_selection_page.dart';
 import '../shared/compact_option_group.dart';
 import '../shared/ootd_image_view.dart';
 
@@ -18,8 +19,6 @@ class OotdDetailPage extends ConsumerStatefulWidget {
 }
 
 class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
-  final ImagePicker _imagePicker = ImagePicker();
-
   late MockOotdItem _initialItem;
   late MockOotdItem _draftItem;
   bool _itemMissing = false;
@@ -188,17 +187,18 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
     setState(() => _isPickingImage = true);
 
     try {
-      final picked = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 92,
+      final selectedPath = await Navigator.of(context).push<String>(
+        MaterialPageRoute<String>(
+          builder: (_) => const PhotoSelectionPage(),
+        ),
       );
-      if (picked == null) {
+      if (selectedPath == null) {
         return null;
       }
 
       final savedPath = await ref
           .read(ootdLocalStoreProvider)
-          .savePickedImage(picked);
+          .savePickedImage(XFile(selectedPath));
 
       return MockOotdImage.file(
         id: 'picked-${DateTime.now().microsecondsSinceEpoch}',
@@ -413,7 +413,7 @@ class _ImageTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: hasImage ? onPreview : onChange,
+          onTap: busy ? null : hasImage ? onPreview : onChange,
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
@@ -430,7 +430,7 @@ class _ImageTile extends StatelessWidget {
                   Positioned(left: 6, top: 6, child: _TileBadge(label: label!)),
                 Positioned(
                   right: 4,
-                  bottom: 4,
+                  bottom: 6,
                   child: IconButton.filledTonal(
                     onPressed: busy ? null : onChange,
                     icon: Icon(

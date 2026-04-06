@@ -86,17 +86,37 @@ class OotdLocalStore {
     await file.writeAsString(jsonEncode(options));
   }
 
+  Future<List<String>> loadCapturedImagePaths() async {
+    final directory = await _capturedImagesDirectory();
+    if (!await directory.exists()) {
+      return const [];
+    }
+
+    final files = await directory
+        .list()
+        .where((entity) => entity is File)
+        .cast<File>()
+        .toList();
+
+    files.sort(
+      (left, right) => p.basename(right.path).compareTo(p.basename(left.path)),
+    );
+
+    return files.map((file) => file.path).toList(growable: false);
+  }
+
+  Future<String> saveCapturedImage(XFile pickedFile) async {
+    final imagesDir = await _capturedImagesDirectory();
+    return _copyPickedImage(
+      pickedFile,
+      imagesDir,
+      filePrefix: 'captured_',
+    );
+  }
+
   Future<String> savePickedImage(XFile pickedFile) async {
     final imagesDir = await _imagesDirectory();
-    await imagesDir.create(recursive: true);
-
-    final extension = p.extension(pickedFile.path);
-    final fileName =
-        'ootd_${DateTime.now().microsecondsSinceEpoch}${extension.isEmpty ? '.jpg' : extension}';
-    final targetPath = p.join(imagesDir.path, fileName);
-
-    await File(pickedFile.path).copy(targetPath);
-    return targetPath;
+    return _copyPickedImage(pickedFile, imagesDir, filePrefix: 'ootd_');
   }
 
   Future<File> _itemsFile() async {
@@ -119,8 +139,29 @@ class OotdLocalStore {
     return Directory(p.join(directory.path, 'images'));
   }
 
+  Future<Directory> _capturedImagesDirectory() async {
+    final directory = await _dataDirectory();
+    return Directory(p.join(directory.path, 'captured_images'));
+  }
+
   Future<Directory> _dataDirectory() async {
     final root = await getApplicationDocumentsDirectory();
     return Directory(p.join(root.path, 'daily_ootd'));
+  }
+
+  Future<String> _copyPickedImage(
+    XFile pickedFile,
+    Directory targetDirectory, {
+    required String filePrefix,
+  }) async {
+    await targetDirectory.create(recursive: true);
+
+    final extension = p.extension(pickedFile.path);
+    final fileName =
+        '$filePrefix${DateTime.now().microsecondsSinceEpoch}${extension.isEmpty ? '.jpg' : extension}';
+    final targetPath = p.join(targetDirectory.path, fileName);
+
+    await File(pickedFile.path).copy(targetPath);
+    return targetPath;
   }
 }

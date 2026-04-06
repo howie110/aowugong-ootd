@@ -20,8 +20,8 @@ void main() {
     expect(find.text('工作'), findsOneWidget);
     expect(find.text('黑白'), findsOneWidget);
     expect(find.text('1星'), findsOneWidget);
-    expect(find.text('2026-04-05'), findsNothing);
-    expect(find.text('当前筛选条件下没有匹配的穿搭'), findsOneWidget);
+    expect(find.text('2026-04-05'), findsOneWidget);
+    expect(find.text('当前筛选条件下没有匹配的穿搭'), findsNothing);
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(HomePage)),

@@ -39,6 +39,7 @@ dependencies:
   path: ^1.9.1
   camera: ^0.12.0+1
   image_picker: ^1.2.0
+  photo_manager: ^3.7.1
   image_cropper: ^12.1.1
   flutter_image_compress: ^2.4.0
 
