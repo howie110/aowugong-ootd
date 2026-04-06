@@ -1,163 +1,145 @@
 # 数据模型
 
-Status: draft
+Status: active
 Type: architecture-data
-Last Updated: 2026-04-04
+Last Updated: 2026-04-06
 Source of Truth: yes
-Related: [产品需求](../01-product/product-requirements.md), [存储策略](storage-strategy.md)
+Related: [存储策略](storage-strategy.md), [数据流](data-flow.md)
 
 ## Summary
 
-数据模型遵循两个原则：
+当前版本的数据模型围绕 4 类持久化对象组织：
 
-- OOTD 记录与图片文件分层建模，记录是核心业务对象，图片是其子对象。
-- 主图即首页展示图，细节图仅在全屏详情中加载。
-- 高查询频率、可排序或可范围筛选的字段使用结构化列。
-- 可多选、可复用的筛选信息使用标签关联表。
+- 穿搭列表
+- 首页筛选状态
+- 选项配置
+- 最近一次导出备份的信息
 
-## Core Tables
+这些对象以 JSON 文件形式落盘。
 
-### `ootd_entries`
+## Core Entity: OOTD Item
 
-每条穿搭记录一行。当前产品规则是每个自然日最多一条记录，每条记录可包含多张照片。
+当前单条穿搭对应 `MockOotdItem`，虽然名字还带 `Mock`，但它已经是实际业务模型。
 
-建议字段：
+### 字段
 
-- `id`: 主键
-- `day_key_local`: 本地日期键，例如 `2026-04-04`
-- `captured_at_utc_ms`: 拍摄时间，UTC 毫秒
-- `captured_tz_offset_min`: 拍摄时区偏移，分钟
-- `preference_status`: `liked` 或 `disliked`
-- `note`: 备注，可空
-- `created_at_ms`
-- `updated_at_ms`
+- `id`: 唯一标识
+- `images`: 图片列表，长度限制 `1..4`
+- `dateLabel`: 日期字符串，格式为 `YYYY-MM-DD`
+- `preference`: 偏好选项，例如 `喜欢`
+- `season`: 季节选项，例如 `春`
+- `scene`: 场景选项，例如 `工作`
+- `tone`: 色调选项，例如 `冷色`
+- `rating`: 评星选项，例如 `4星`
+- `extraSelections`: 自定义选项组对应的值
 
-### `ootd_photos`
+### 约束
 
-同一条 OOTD 下的照片集合。
+- 每条穿搭至少 `1` 张图
+- 每条穿搭最多 `4` 张图
+- `dateLabel` 在当前数据集中必须唯一
+- 第一张图默认是主图
 
-建议字段：
+## Image Entity
 
-- `id`
-- `entry_id`
-- `photo_rel_path`
-- `thumb_rel_path`
-- `width`
-- `height`
-- `file_size_bytes`
-- `sort_order`
-- `is_cover`
-- `source_type`: `camera` 或 `gallery`
-- `created_at_ms`
-- `updated_at_ms`
+当前单张图片对应 `MockOotdImage`。
 
-### `tags`
-
-标签主表。
-
-建议字段：
+### 字段
 
 - `id`
-- `name`
-- `color_hex`
-- `created_at_ms`
-- `updated_at_ms`
+- `sourceType`
+- `path`
+- `colorValue`
 
-### `entry_tags`
+### 当前支持的图片来源类型
 
-穿搭记录与标签的多对多关系表。
+- `asset`: 仅用于仓库内演示资源或历史兼容
+- `file`: 实际保存在 app 管理目录中的文件
+- `solidColor`: 用于占位的纯色图
 
-建议字段：
+### 当前真实持久化关注点
 
-- `entry_id`
-- `tag_id`
+长期真实数据主要依赖 `file` 类型。`asset` 和 `solidColor` 主要是为了兼容已有数据与占位场景。
 
-## Confirmed Constraints
+## Filter State
 
-- `day_key_local` 在首版必须唯一，代表一天一条记录。
-- `ootd_photos(entry_id, sort_order)` 必须唯一，用于稳定展示多角度顺序。
-- 每条 `ootd_entries` 固定为 `1` 张主图和最多 `3` 张细节图，总数限制在 `1..4` 张。
-- 每条 `ootd_entries` 必须且只能有一张主图，主图即封面图。
-- `preference_status` 默认值为 `liked`。
-- `tags(name)` 唯一，避免重复标签。
-- `entry_tags(entry_id, tag_id)` 使用复合主键。
-- 删除标签时，只删除 `entry_tags` 关联，不删除 `ootd_entries`。
-- 重命名标签时，由于记录关联的是 `tag_id`，所有历史记录自动显示新名称。
+首页筛选状态对应 `OotdFilterState`。
 
-## Suggested Indexes
+### 字段
 
-- `idx_entries_day` on `day_key_local DESC`
-- `idx_entries_captured` on `captured_at_utc_ms DESC`
-- `idx_entries_preference_day` on `(preference_status, day_key_local DESC)`
-- `idx_photos_entry_order` on `(entry_id, sort_order)`
-- `idx_photos_entry_cover` on `(entry_id, is_cover)`
-- `uidx_photos_one_cover_per_entry` on `entry_id where is_cover = 1`
-- `idx_entry_tags_tag` on `(tag_id, entry_id)`
-- `idx_tags_name` on `name`
+- `preferences`
+- `seasons`
+- `scenes`
+- `tones`
+- `ratings`
+- `extraSelections`
 
-## Query Patterns To Optimize
+### 规则
 
-- 查询最近 N 条“喜欢”记录，用于首页灵感库。
-- 查询记录及其封面图，用于首页网格。
-- 查询单条记录下的全部照片，用于独立全屏详情页左右滑动查看。
-- 查询全部标签，用于首页筛选和设置页管理。
-- 查询全部“不喜欢”记录，用于设置页恢复。
-- 按一个或多个标签筛选。
-- 重命名标签后刷新所有关联记录的显示结果。
+- 首页筛选是多选
+- 某一组为空时，表示该组不限制
+- 所有组都为空时，首页显示全部穿搭
 
-## Example SQL
+## Option Config
 
-```sql
-CREATE TABLE ootd_entries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  day_key_local TEXT NOT NULL UNIQUE,
-  captured_at_utc_ms INTEGER NOT NULL,
-  captured_tz_offset_min INTEGER NOT NULL,
-  preference_status TEXT NOT NULL DEFAULT 'liked'
-    CHECK (preference_status IN ('liked', 'disliked')),
-  note TEXT,
-  created_at_ms INTEGER NOT NULL,
-  updated_at_ms INTEGER NOT NULL
-);
+选项配置对应 `OotdOptionConfig`。
 
-CREATE TABLE ootd_photos (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  entry_id INTEGER NOT NULL,
-  photo_rel_path TEXT NOT NULL,
-  thumb_rel_path TEXT NOT NULL,
-  width INTEGER NOT NULL,
-  height INTEGER NOT NULL,
-  file_size_bytes INTEGER NOT NULL,
-  sort_order INTEGER NOT NULL CHECK (sort_order BETWEEN 1 AND 4),
-  is_cover INTEGER NOT NULL CHECK (is_cover IN (0, 1)),
-  source_type TEXT NOT NULL CHECK (source_type IN ('camera', 'gallery')),
-  created_at_ms INTEGER NOT NULL,
-  updated_at_ms INTEGER NOT NULL,
-  FOREIGN KEY (entry_id) REFERENCES ootd_entries(id) ON DELETE CASCADE,
-  UNIQUE(entry_id, sort_order)
-);
+### 内置组选项
 
-CREATE UNIQUE INDEX uidx_photos_one_cover_per_entry
-ON ootd_photos(entry_id)
-WHERE is_cover = 1;
+- `preferences`
+- `seasons`
+- `scenes`
+- `tones`
+- `ratings`
 
-CREATE TABLE tags (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL UNIQUE,
-  color_hex TEXT,
-  created_at_ms INTEGER NOT NULL,
-  updated_at_ms INTEGER NOT NULL
-);
+### 扩展字段
 
-CREATE TABLE entry_tags (
-  entry_id INTEGER NOT NULL,
-  tag_id INTEGER NOT NULL,
-  PRIMARY KEY (entry_id, tag_id),
-  FOREIGN KEY (entry_id) REFERENCES ootd_entries(id) ON DELETE CASCADE,
-  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-);
+- `extraGroups`: 自定义选项组
+- `hiddenBuiltInKeys`: 被隐藏的内置组选项 key
+
+### 当前默认值
+
+- 偏好：`喜欢`、`不喜欢`
+- 季节：`春`、`夏`、`秋`、`冬`
+- 场景：`工作`、`休息`
+- 色调：`黑白`、`冷色`、`暖色`
+- 评星：`1星` 到 `5星`
+
+## Backup Metadata
+
+`ootd_backup_meta.json` 只记录最近一次导出备份文件的路径，用于让设置页重新进入时还能看到最近导出的文件信息。
+
+## First Install Defaults
+
+首次安装时：
+
+- `ootd_items.json` 不存在，因此初始穿搭列表为空
+- `ootd_filters.json` 不存在，因此筛选状态为空
+- `ootd_options.json` 不存在，因此加载默认内置选项
+
+## JSON File Mapping
+
+```text
+ootd_items.json        -> List<MockOotdItem>
+ootd_filters.json      -> OotdFilterState
+ootd_options.json      -> OotdOptionConfig
+ootd_backup_meta.json  -> 最近一次导出 zip 的路径
 ```
 
-## Open Questions
+## Backup Manifest Model
 
-- 暂无数据模型级未决问题。
+导出的 `zip` 中包含 `manifest.json`，核心字段为：
+
+- `backupFormatVersion`
+- `appVersion`
+- `exportedAt`
+- `items`
+- `filters`
+- `options`
+- `images`
+
+## Data Model Evolution Direction
+
+- 后续可以把当前模型从 `mock_ootd_items.dart` 中拆出
+- 如果将来增加备注、统计或同步信息，再扩展 JSON 模型
+- 如果数据量显著增大，再评估数据库化

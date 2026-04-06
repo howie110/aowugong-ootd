@@ -1,121 +1,147 @@
 # 存储策略
 
-Status: draft
+Status: active
 Type: architecture-storage
-Last Updated: 2026-04-04
+Last Updated: 2026-04-06
 Source of Truth: yes
-Related: [数据模型](data-model.md), [ADR-001](../04-decisions/ADR-001-local-first-storage.md)
+Related: [数据模型](data-model.md), [ADR-001](../04-decisions/ADR-001-local-first-storage.md), [ADR-003](../04-decisions/ADR-003-zip-backup-format.md)
 
 ## Summary
 
-图片和结构化数据分开存储。数据库保存记录级字段，以及每张照片的相对路径和元信息。实际图片文件放在 App 私有目录。首页永远优先读取“喜欢”的 OOTD 主图缩略图，不直接读取原图。当前采用简化目录结构，不按年月分层。
+当前项目使用“JSON + 图片文件 + zip 备份”的存储策略。它不是数据库方案，也不长期引用系统相册原路径。
 
-## Directory Layout
+## Application Data Directory
 
-建议目录：
-
-```text
-ApplicationSupport/ootd/ootd.db
-Documents/ootd/photos/<file>.jpg
-Documents/ootd/thumbs/<file>.jpg
-```
-
-说明：
-
-- `photos/` 存主图，用于详情预览或放大查看。
-- `thumbs/` 存缩略图，用于首页网格或列表快速展示。
-- 主图和缩略图分目录，但不再按年月继续拆分。
-- 每条 OOTD 固定为 `1` 张主图和最多 `3` 张细节图，但首页仍然只依赖主图缩略图。
-- 以当前产品体量看，单目录文件数量不会成为主要性能瓶颈。
-
-## File Naming
-
-建议使用稳定、可追溯但不依赖用户输入的命名方式：
+当前 app 的主数据目录名为：
 
 ```text
-ootd_20260404_01.jpg
-ootd_20260404_01_thumb.jpg
-ootd_20260404_02.jpg
+daily_ootd
 ```
 
-组成建议：
+该目录位于 `getApplicationDocumentsDirectory()` 下。
 
-- 固定前缀
-- 日期
-- 顺序号
-- 统一后缀
+## Persistent File Layout
 
-说明：
+```text
+<ApplicationDocuments>/daily_ootd/
+  ootd_items.json
+  ootd_filters.json
+  ootd_options.json
+  ootd_backup_meta.json
+  images/
+    ootd_<timestamp>.jpg
+```
 
-- 因为当前产品规则是每天一条 OOTD 记录，且固定为 `1` 张主图加最多 `3` 张细节图，所以文件名需要带顺序号。
-- 建议 `01` 预留给主图，`02~04` 用于细节图。
-- 主图和缩略图分目录存放，也可以额外给缩略图加 `_thumb` 后缀，便于排查。
-- 如果未来允许替换当天某一张照片，可以直接覆盖同顺序号文件，或先写临时文件再原子替换。
+## What Is Actually Stored
 
-## Photo Pipeline
+### `ootd_items.json`
 
-1. 通过相机拍摄或从系统相册选择图片。
-2. 将外部图片复制到应用的临时工作区，不长期引用系统相册原路径。
-3. 进入裁剪页面。
-4. 对每张照片生成压缩后的主图。
-5. 对每张照片生成缩略图。
-6. 将主图与缩略图移动到永久目录。
-7. 写入 `ootd_entries` 与 `ootd_photos`。
-8. 如果数据库写入失败，回滚已写入文件。
+保存穿搭本体和图片引用关系。
 
-## Image Size Guidance
+### `ootd_filters.json`
 
-- 主图建议长边控制在 `1600~2048px`
-- 缩略图建议长边控制在 `360~540px`
-- 主图质量建议 `82~88`
-- 缩略图质量建议 `70~80`
+保存首页筛选状态。
 
-目标不是保留摄影原始质量，而是保留足够回看和比较穿搭的质量。详情页使用主图，多角度浏览不依赖首页尺寸。
+### `ootd_options.json`
 
-## Why Relative Paths
+保存内置组和自定义组选项。
 
-- App 沙盒根路径在不同平台或安装状态下可能不同。
-- 数据库迁移和目录重建时更容易恢复。
-- 后续如果增加导出或备份功能，更容易统一处理。
+### `ootd_backup_meta.json`
 
-## Why Not Split By Year And Month
+保存最近一次导出成功的 `zip` 完整路径。
 
-- 当前产品规则是每天一条 OOTD 记录，每条固定为 `1` 张主图和最多 `3` 张细节图，文件总量增长速度仍可控。
-- 对这个量级而言，首页性能主要受图片尺寸、缩略图策略和懒加载影响，不取决于是否按年月分目录。
-- 目录更简单，后续实现、排查和清理都更直接。
+### `images/`
 
-## Dislike Strategy
+保存 app 真正管理的穿搭图片文件。
 
-将 OOTD 标记为“不喜欢”时：
+## Image Path Strategy
 
-1. 只更新数据库中的 `preference_status` 为 `disliked`。
-2. 不删除数据库记录。
-3. 不删除主图、细节图和缩略图文件。
-4. 该记录从首页默认灵感库中隐藏，但可在设置页恢复。
+- 图片进入 app 后，会复制到 app 管理目录
+- JSON 中优先保存相对路径
+- 运行时再通过数据根目录解析成绝对路径
 
-## Permanent Deletion Strategy
+这样做的原因：
 
-删除单条记录时建议顺序：
+- 更利于备份和恢复
+- 更利于跨安装路径迁移
+- 更利于排查路径问题
 
-1. 读取该记录下全部主图与缩略图路径。
-2. 删除数据库记录。
-3. 删除文件。
-4. 如果文件删除失败，记录日志并加入后续清理列表。
+## Why There Is No `captured_images/`
 
-## Cleanup Strategy
+当前已经明确不单独维护 `captured_images/`。
 
-建议增加一个轻量维护任务：
+拍照后的正确链路是：
 
-- 应用启动时扫描是否存在数据库无引用的孤儿图片。
-- 应用启动时扫描是否存在文件缺失但数据库仍有引用的异常记录。
-- 不在每次页面进入时做全量扫描。
+1. 拍照或选图
+2. 进入当前选择流程
+3. 真正保存为穿搭时，再复制到 app 管理目录
 
-## Permission Guidance
+也就是说，只有“已纳入穿搭数据”的图片才进入 `images/`。
 
-- 由于首版支持从系统相册选择图片，因此需要处理系统图片选择权限或系统图片选择器。
-- 选入图片后统一复制到 App 私有目录，不长期依赖系统相册路径。
-- 首版不将 OOTD 成品照片写回系统相册。
+## Backup Export Strategy
 
-## Open Questions
+### 导出时
 
-- 暂无存储策略级未决问题。
+1. 读取当前穿搭、筛选、选项
+2. 收集被穿搭引用的本地图片
+3. 生成 `manifest.json`
+4. 打包成 `zip`
+5. 弹出系统另存为窗口，让用户自己选择保存路径
+6. 记录最近一次导出成功的保存路径
+
+### 导出结果
+
+最终备份文件不强制落在 `Android/data/...`，而是由用户决定保存位置。当前推荐保存到 `Download`。
+
+## Backup Import Strategy
+
+### 导入时
+
+1. 用户选择一个 `zip`
+2. 先读取并预览 `manifest.json`
+3. 用户确认导入
+4. 自动生成一份回滚备份
+5. 删除当前 `images/`
+6. 写入备份中的图片
+7. 写入新的 `ootd_items.json`、`ootd_filters.json`、`ootd_options.json`
+
+## Rollback Backup Strategy
+
+导入前自动生成回滚备份，便于导入失败时恢复当前数据。
+
+回滚备份用于内部安全兜底，不作为用户主导出的主要体验入口。
+
+## File Naming Strategy
+
+当前图片文件名规则：
+
+```text
+ootd_<microsecondsSinceEpoch>.<ext>
+```
+
+这个策略的特点：
+
+- 简单
+- 基本避免重名
+- 不依赖用户输入
+
+## Deletion Strategy
+
+删除整条穿搭时：
+
+- 从内存状态移除
+- 持久化新的 `ootd_items.json`
+
+当前实现没有额外做图片级垃圾回收扫描。未来如果发现孤儿图片积累，再补清理策略。
+
+## Compatibility Strategy
+
+- 首次安装没有 `ootd_items.json` 时，初始化为空穿搭列表
+- 旧数据中的绝对路径会尝试规范化为相对路径
+- 导入备份时使用 `backupFormatVersion` 约束格式兼容
+
+## Future Improvements
+
+- 增加图片孤儿文件清理
+- 增加备份校验信息
+- 增加更明确的导入冲突提示

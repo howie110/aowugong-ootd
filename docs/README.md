@@ -2,76 +2,96 @@
 
 Status: active
 Type: index
-Last Updated: 2026-04-04
+Last Updated: 2026-04-06
 Source of Truth: yes
 
 ## Summary
 
-本文件用于说明整个 `docs/` 目录怎么读、每类文档分别解决什么问题，以及当文档冲突时以谁为准。
+本目录用于描述“每日穿搭”项目当前真实状态，包括产品边界、架构实现、开发方式、发版方式和后续优化方向。
 
-## 阅读顺序
+本次文档更新后，文档基线已经从“开发前设想”切换到“当前已实现版本”。如果文档与代码冲突，以代码和本文档索引指向的长期文档为准。
 
-1. [产品需求](01-product/product-requirements.md)
-2. [MVP 范围](01-product/mvp-scope.md)
-3. [架构总览](02-architecture/architecture-overview.md)
-4. [数据模型](02-architecture/data-model.md)
-5. [存储策略](02-architecture/storage-strategy.md)
-6. [当前执行计划](03-plans/current.md)
-7. [当前任务清单](05-tasks/now.md)
+## 建议阅读顺序
+
+1. [项目根说明](../README.md)
+2. [产品需求](01-product/product-requirements.md)
+3. [MVP 与当前稳定范围](01-product/mvp-scope.md)
+4. [架构总览](02-architecture/architecture-overview.md)
+5. [项目结构](02-architecture/project-structure.md)
+6. [数据流](02-architecture/data-flow.md)
+7. [数据模型](02-architecture/data-model.md)
+8. [存储策略](02-architecture/storage-strategy.md)
+9. [本地开发与安装](06-operations/dev-setup.md)
+10. [调试与运行](06-operations/debug-and-run.md)
+11. [发版说明](06-operations/release.md)
+12. [测试清单](06-operations/test-checklist.md)
+13. [版本记录](../CHANGELOG.md)
 
 ## 目录说明
 
 ### `01-product/`
 
-回答“做什么”。
+回答“这个产品现在做什么、不做什么”。
 
-- `product-requirements.md`: 产品目标、核心功能、约束、待确认项。
-- `mvp-scope.md`: 首版必须做什么、明确不做什么。
+- `product-requirements.md`: 当前产品能力、核心流程、约束和成功标准
+- `mvp-scope.md`: 当前稳定版本的边界，以及明确后置的能力
 
 ### `02-architecture/`
 
-回答“怎么做”。
+回答“现在的代码怎么组织、数据怎么流动、文件怎么存”。
 
-- `architecture-overview.md`: 技术栈、分层、代码组织建议。
-- `data-model.md`: 本地数据库模型、查询模式、索引建议。
-- `storage-strategy.md`: 图片文件、缩略图、路径和清理策略。
+- `architecture-overview.md`: 技术栈、分层、核心实现方式
+- `project-structure.md`: 仓库和 `lib/` 目录结构
+- `data-flow.md`: 启动、编辑、备份导入等关键流程
+- `data-model.md`: 当前持久化模型与内存模型
+- `storage-strategy.md`: JSON、图片、zip 和目录策略
 
 ### `03-plans/`
 
-回答“现在先做什么”。
+回答“当前阶段在做什么”。
 
-- `current.md`: 当前有效的执行计划，始终保持最新。
-- `2026-04-mvp-bootstrap.md`: 第一阶段实施方案。
+- `current.md`: 当前阶段目标与执行重点
+- 其他文件默认视为阶段性计划或历史记录，不作为长期真相
 
 ### `04-decisions/`
 
-回答“为什么这么定”。
+回答“为什么要这么定”。
 
-- `ADR-001-local-first-storage.md`: 选择离线优先和本地存储。
-- `ADR-002-drift-over-sqflite.md`: 选择 Drift 而不是直接写 sqflite。
+- `ADR-001-local-first-storage.md`: 为什么坚持离线优先
+- `ADR-002-json-files-over-local-db.md`: 为什么当前版本不用本地数据库
+- `ADR-003-zip-backup-format.md`: 为什么备份使用 `zip`
+- `ADR-004-android-package-and-signing.md`: 为什么尽早固定包名和签名
 
 ### `05-tasks/`
 
-回答“下一步具体做什么”。
+回答“下一阶段优化做什么”。
 
-- `now.md`: 当前待确认和待实施项。
-- `backlog.md`: MVP 之后的候选工作。
+- `now.md`: 当前正在推进或等待验证的事项
+- `backlog.md`: 已经确认有价值，但暂未排进当前迭代的方向
+
+### `06-operations/`
+
+回答“怎么装环境、怎么调试、怎么发版、怎么验证”。
+
+- `dev-setup.md`
+- `debug-and-run.md`
+- `release.md`
+- `test-checklist.md`
 
 ### `99-archive/`
 
-存放过期方案和已失效文档，不删除历史，但不作为当前执行依据。
+存放已失效或仅保留历史背景价值的文档，不作为当前实现依据。
 
 ## 冲突处理规则
 
-- 产品范围冲突时，以 `01-product/` 为准。
-- 技术方案冲突时，以 `02-architecture/` 和 `04-decisions/` 为准。
-- 执行步骤冲突时，以 `03-plans/current.md` 为准。
-- 如果两份长期文档冲突，优先看 `Last Updated`，然后人工确认并修订。
+- 产品边界冲突时，以 `01-product/` 为准。
+- 实现方式冲突时，以 `02-architecture/` 和 `04-decisions/` 为准。
+- 操作步骤冲突时，以 `06-operations/` 为准。
+- 版本变化冲突时，以 [CHANGELOG.md](../CHANGELOG.md) 为准。
 
-## 文档写作规则
+## 文档维护规则
 
-- 一个文件只负责一个主题。
-- 开头必须包含 `Status`、`Type`、`Last Updated`、`Source of Truth`。
-- `Source of Truth: yes` 的文件只能少量存在。
-- 讨论结论不要只留在聊天里，要沉淀回文档。
-- 做完阶段性工作后，把有效结论回写到长期文档，再更新 `current.md`。
+- 文档必须描述当前实现，不写“理想上以后可能这样”的模糊现状。
+- 关键工程决策不要只留在聊天里，必须回写 ADR。
+- 任何会影响安装、调试、发版、数据兼容的变化，都要同步更新 `06-operations/`。
+- 新版本发布后，同时更新 `CHANGELOG.md`、`pubspec.yaml` 和相关操作文档。

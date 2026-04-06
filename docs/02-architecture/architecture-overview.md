@@ -1,113 +1,107 @@
 # 架构总览
 
-Status: draft
+Status: active
 Type: architecture
-Last Updated: 2026-04-04
+Last Updated: 2026-04-06
 Source of Truth: yes
-Related: [数据模型](data-model.md), [存储策略](storage-strategy.md), [ADR-002](../04-decisions/ADR-002-drift-over-sqflite.md)
+Related: [项目结构](project-structure.md), [数据流](data-flow.md), [存储策略](storage-strategy.md)
 
 ## Summary
 
-本项目建议采用 `Flutter + Riverpod + Drift + 本地文件系统` 的离线优先架构。首版只保留首页和设置页两个主页面，标签与“不喜欢” OOTD 管理集中在设置页，首页负责拍照/选图入口、历史记录浏览和标签筛选。数据模型以“一天一条 OOTD 记录”为核心，每条记录固定为 `1` 张主图和最多 `3` 张细节图，并带有“喜欢 / 不喜欢”状态。
+当前项目采用 `Flutter + Riverpod + 本地 JSON + 本地图片文件 + zip 备份` 的离线优先架构。代码已经实现基础产品闭环，不再使用“数据库 + Drift”方案。
 
-## Recommended Stack
+## Current Stack
 
 - Framework: Flutter
 - Language: Dart
-- State Management: flutter_riverpod
-- Database: drift
-- Camera: camera
-- Crop: image_cropper
-- Image Compression: flutter_image_compress
-- File Access: path_provider + path
+- State Management: `flutter_riverpod`
+- Local Persistence: `dart:io` + JSON 文件
+- Path Utilities: `path` + `path_provider`
+- Photo Input: `image_picker` + `photo_manager` + `camera`
+- Image Processing: `image_cropper` + `flutter_image_compress`
+- Backup: `archive` + `file_picker` + `share_plus`
+- Testing: `flutter_test`
 
-## Layering
+## High-Level Structure
 
-### Presentation
+### Bootstrap
 
-负责页面、组件、交互状态。
+- 入口在 `lib/main.dart`
+- `bootstrap/startup.dart` 负责初始化 Flutter、读取本地文件、修正旧数据，再通过 `ProviderScope` 注入初始状态
 
-- 页面示例：首页、设置页、拍照/选图与裁剪流程、独立全屏详情页。
-- 不直接操作 SQL。
-- 不直接拼接文件路径。
+### App Shell
 
-### Application
+- `lib/app/app.dart` 定义 `MaterialApp`
+- `lib/app/router.dart` 定义应用壳、顶部标题、底部导航和页面切换动画
+- 当前主 tab 只有“穿搭”和“设置”
 
-负责业务流程编排。
+### Feature Layer
 
-- 用例示例：`CreateEntryFromCameraOrGallery`、`MoveEntryToDisliked`、`RestoreEntryToLiked`、`DeleteEntry`、`RenameTag`、`SearchEntries`。
-- 处理“先压缩再保存”、“先删数据库再删文件”这类跨服务流程。
+- `features/ootd/` 负责穿搭数据、首页、详情页、选图页
+- `features/settings/` 负责选项管理、备份导出、备份导入和占位页
 
-### Domain
+### Shared Layer
 
-负责核心模型与接口定义。
+- `shared/design/` 放主题和通用设计系统
+- `shared/` 下其余目录放跨 feature 共用的组件和样式
 
-- 实体示例：`OotdEntry`、`OotdPhoto`、`Tag`、`EntryFilter`。
-- 接口示例：`OotdRepository`、`PhotoStorage`、`CaptureService`。
+## State Architecture
 
-### Data
+当前项目没有单独抽出 repository/use case/domain 三层，而是采用更轻量、直接的实现：
 
-负责具体实现。
+- 数据模型、默认值、部分业务规则集中在 `mock_ootd_items.dart`
+- `NotifierProvider` 持有穿搭列表、筛选状态和选项配置
+- 每次状态变更后，直接通过 `OotdLocalStore` 写回本地 JSON
 
-- Drift table / DAO
-- 本地文件读写
-- 相机与裁剪插件适配
-- Repository 实现
+当前这样做的原因：
 
-## Suggested Code Layout
+- 项目体量仍小
+- 单机离线逻辑相对集中
+- 可以用较少抽象快速迭代
 
-```text
-lib/
-  app/
-    app.dart
-    router.dart
-    providers.dart
-  features/
-    ootd/
-      application/
-      data/
-        db/
-        repositories/
-        services/
-      domain/
-      presentation/
-        home/
-        capture/
-        preview/
-    settings/
-      presentation/
-  shared/
-    design/
-    utils/
-    widgets/
-  bootstrap/
-    startup.dart
-```
+当前明显技术债：
 
-## Why Feature-First
+- `mock_ootd_items.dart` 这个文件名已经不准确，里面承载了真实业务模型和持久化逻辑入口，后续可拆分重命名
 
-- OOTD 是单一主功能产品，按 feature 聚合更容易维护。
-- 首页浏览与设置页标签管理会共享同一批领域对象，按 feature 聚合更容易维持边界。
-- AI 在读取代码时更容易基于目录推断边界。
+## Navigation Strategy
 
-## State Management Guidance
+- 主导航：底部 `NavigationBar`
+- 页面切换：`AnimatedSwitcher`
+- 子页面：`MaterialPageRoute`
+- 穿搭详情和设置子页面都以 push 方式进入
 
-- 页面短状态，例如当前选中标签筛选项，可放在 notifier。
-- 持久化数据流由 repository 暴露 stream。
-- UI 只订阅 view model，不直接订阅表结构。
-- 一次性的业务动作通过 use case 触发。
-- 设置页改动标签后，首页筛选列表应自动响应刷新。
-- 设置页改动 OOTD 的喜欢状态后，首页灵感库应自动响应刷新。
-- 详情页照片轮播或滑动索引属于短状态，不应反向污染数据层。
+## Persistence Strategy
 
-## Performance Guidance
+- 穿搭列表：`ootd_items.json`
+- 首页筛选：`ootd_filters.json`
+- 选项配置：`ootd_options.json`
+- 最近导出备份信息：`ootd_backup_meta.json`
+- 本地图片：`daily_ootd/images/`
 
-- 列表页只读取状态为 `liked` 的主图缩略图与轻量字段。
-- 数据库连接放后台 isolate。
-- 首页采用固定比例网格，而不是复杂自适应瀑布流。
-- 不在 build 阶段进行图片压缩、路径计算或大对象转换。
-- 独立全屏详情页再按需加载同一条记录下的细节图。
+## Why No Local Database For Now
 
-## Open Questions
+- 当前数据结构仍然轻量
+- 查询模式主要是全量读入后内存筛选
+- 当前优先保证数据可迁移、可理解、可排查
+- JSON 文件更利于备份和手工验证
 
-- 暂无架构级未决问题。
+## Current Architecture Strengths
+
+- 依赖少
+- 本地数据结构透明
+- 调试简单
+- 备份逻辑直接
+- 适合当前单用户、单设备优先的产品阶段
+
+## Current Architecture Risks
+
+- 模型、状态、持久化写在同一特性文件里，后期会变重
+- 数据量继续增大后，全量加载再筛选的方式可能需要优化
+- 未来如果接入同步或统计能力，当前结构需要进一步拆层
+
+## Recommended Refactor Direction
+
+- 拆出 `models/`、`providers/`、`services/`
+- 把 `mock_ootd_items.dart` 重命名为真实业务文件
+- 为备份、图片和持久化补更完整的单元测试
+- 如果数据规模明显增长，再评估数据库方案
