@@ -9,10 +9,24 @@ class DailyOotdApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Daily OOTD',
+      title: '穿搭',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      scrollBehavior: const AppScrollBehavior(),
       home: const AppShell(),
     );
+  }
+}
+
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
   }
 }

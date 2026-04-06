@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'option_management_page.dart';
+import 'settings_placeholder_page.dart';
+
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -9,143 +12,161 @@ class SettingsPage extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+      key: const PageStorageKey<String>('settings-scroll'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '管理中心',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.6,
-            ),
+          _SettingsGroup(
+            items: [
+              _SettingsItemData(
+                icon: Icons.tune_rounded,
+                title: '选项管理',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const OptionManagementPage(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            '设置页负责标签和“不喜欢”记录管理，首页只保留找灵感和浏览入口。',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              height: 1.45,
-            ),
+          const SizedBox(height: 12),
+          _SettingsGroup(
+            items: [
+              _SettingsItemData(
+                icon: Icons.cloud_upload_outlined,
+                title: '数据备份',
+                onTap: () => _openPlaceholder(context, '数据备份'),
+              ),
+              _SettingsItemData(
+                icon: Icons.download_for_offline_outlined,
+                title: '备份导入',
+                onTap: () => _openPlaceholder(context, '备份导入'),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          _SectionCard(
-            title: '标签管理',
-            subtitle: '后续会接标签的创建、重命名、删除和颜色区分。',
-            leading: Icons.sell_outlined,
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: const [
-                Chip(label: Text('通勤')),
-                Chip(label: Text('周末')),
-                Chip(label: Text('极简')),
-                Chip(label: Text('叠穿')),
-              ],
-            ),
+          const SizedBox(height: 12),
+          _SettingsGroup(
+            items: [
+              _SettingsItemData(
+                icon: Icons.help_outline_rounded,
+                title: '帮助中心',
+                onTap: () => _openPlaceholder(context, '帮助中心'),
+              ),
+              _SettingsItemData(
+                icon: Icons.info_outline_rounded,
+                title: '版本信息',
+                trailingText: 'v1.0.0',
+                onTap: () => _openPlaceholder(context, '版本信息'),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: '不喜欢的 OOTD',
-            subtitle: '这里会承接“移出首页灵感库”后的记录，并支持恢复。',
-            leading: Icons.restore_from_trash_outlined,
-            child: Column(
-              children: const [
-                _StatusRow(label: '待恢复记录', value: '0'),
-                SizedBox(height: 10),
-                _StatusRow(label: '支持永久删除', value: '已规划'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: '本地存储',
-            subtitle: '首版只走本地文件系统和本地数据库，不接云同步。',
-            leading: Icons.folder_outlined,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '照片只保存在 App 私有目录，避免回写系统相册。',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton.tonalIcon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.storage_outlined),
-                  label: const Text('后续接入存储详情'),
-                ),
-              ],
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              '部分入口已预留，功能稍后接入。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 10.5,
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  void _openPlaceholder(BuildContext context, String title) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsPlaceholderPage(title: title),
+      ),
+    );
+  }
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.subtitle,
-    required this.leading,
-    required this.child,
-  });
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({required this.items});
 
-  final String title;
-  final String subtitle;
-  final IconData leading;
-  final Widget child;
+  final List<_SettingsItemData> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < items.length; index++) ...[
+            _SettingsRow(data: items[index]),
+            if (index != items.length - 1)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 18),
+                child: Divider(height: 1, color: Color(0xFFF0F4FA)),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({required this.data});
+
+  final _SettingsItemData data;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.shadow.withValues(alpha: 0.05),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: data.onTap,
       child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(leading),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+            Icon(data.icon, size: 18, color: const Color(0xFF2E3138)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                data.title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                height: 1.45,
               ),
             ),
-            const SizedBox(height: 16),
-            child,
+            if (data.trailingText != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Text(
+                  data.trailingText!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF9AA7BC),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFFC8D1DE),
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -153,26 +174,16 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.label, required this.value});
+class _SettingsItemData {
+  const _SettingsItemData({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.trailingText,
+  });
 
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      children: [
-        Expanded(child: Text(label, style: theme.textTheme.bodyLarge)),
-        Text(
-          value,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final String? trailingText;
 }
