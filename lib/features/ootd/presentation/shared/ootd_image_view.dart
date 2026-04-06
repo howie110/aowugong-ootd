@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/local_ootd_store.dart';
 import '../home/mock_ootd_items.dart';
 
-class OotdImageView extends StatelessWidget {
+class OotdImageView extends ConsumerWidget {
   const OotdImageView({
     super.key,
     required this.image,
@@ -15,7 +17,15 @@ class OotdImageView extends StatelessWidget {
   final BoxFit fit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final storageRoot = ref.watch(ootdStorageRootProvider);
+    final resolvedPath = image.path == null || storageRoot.isEmpty
+        ? image.path
+        : resolveManagedImagePath(
+            image.path!,
+            dataDirectoryPath: storageRoot,
+          );
+
     return switch (image.sourceType) {
       OotdImageSourceType.asset => Image.asset(
         image.path ?? '',
@@ -23,7 +33,7 @@ class OotdImageView extends StatelessWidget {
         errorBuilder: (_, _, _) => _FallbackColor(colorValue: image.colorValue),
       ),
       OotdImageSourceType.file => Image.file(
-        File(image.path ?? ''),
+        File(resolvedPath ?? ''),
         fit: fit,
         errorBuilder: (_, _, _) => _FallbackColor(colorValue: image.colorValue),
       ),

@@ -5,6 +5,36 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+const ootdManagedImagesDirectoryName = 'images';
+const ootdDataDirectoryName = 'daily_ootd';
+
+String normalizeManagedImagePath(String rawPath, {required String dataDirectoryPath}) {
+  if (rawPath.trim().isEmpty) {
+    return rawPath;
+  }
+
+  final normalizedPath = p.normalize(rawPath);
+  final normalizedRoot = p.normalize(dataDirectoryPath);
+  if (p.isAbsolute(normalizedPath) && p.isWithin(normalizedRoot, normalizedPath)) {
+    return p.relative(normalizedPath, from: normalizedRoot).replaceAll('\\', '/');
+  }
+
+  return rawPath.replaceAll('\\', '/');
+}
+
+String resolveManagedImagePath(String storedPath, {required String dataDirectoryPath}) {
+  if (storedPath.trim().isEmpty) {
+    return storedPath;
+  }
+
+  final normalizedPath = storedPath.replaceAll('\\', '/');
+  if (p.isAbsolute(normalizedPath)) {
+    return p.normalize(normalizedPath);
+  }
+
+  return p.normalize(p.join(dataDirectoryPath, normalizedPath));
+}
+
 class OotdLocalStore {
   const OotdLocalStore();
 
@@ -86,37 +116,14 @@ class OotdLocalStore {
     await file.writeAsString(jsonEncode(options));
   }
 
-  Future<List<String>> loadCapturedImagePaths() async {
-    final directory = await _capturedImagesDirectory();
-    if (!await directory.exists()) {
-      return const [];
-    }
-
-    final files = await directory
-        .list()
-        .where((entity) => entity is File)
-        .cast<File>()
-        .toList();
-
-    files.sort(
-      (left, right) => p.basename(right.path).compareTo(p.basename(left.path)),
-    );
-
-    return files.map((file) => file.path).toList(growable: false);
-  }
-
-  Future<String> saveCapturedImage(XFile pickedFile) async {
-    final imagesDir = await _capturedImagesDirectory();
-    return _copyPickedImage(
-      pickedFile,
-      imagesDir,
-      filePrefix: 'captured_',
-    );
-  }
-
   Future<String> savePickedImage(XFile pickedFile) async {
     final imagesDir = await _imagesDirectory();
     return _copyPickedImage(pickedFile, imagesDir, filePrefix: 'ootd_');
+  }
+
+  Future<String> dataDirectoryPath() async {
+    final directory = await _dataDirectory();
+    return directory.path;
   }
 
   Future<File> _itemsFile() async {
@@ -136,17 +143,12 @@ class OotdLocalStore {
 
   Future<Directory> _imagesDirectory() async {
     final directory = await _dataDirectory();
-    return Directory(p.join(directory.path, 'images'));
-  }
-
-  Future<Directory> _capturedImagesDirectory() async {
-    final directory = await _dataDirectory();
-    return Directory(p.join(directory.path, 'captured_images'));
+    return Directory(p.join(directory.path, ootdManagedImagesDirectoryName));
   }
 
   Future<Directory> _dataDirectory() async {
     final root = await getApplicationDocumentsDirectory();
-    return Directory(p.join(root.path, 'daily_ootd'));
+    return Directory(p.join(root.path, ootdDataDirectoryName));
   }
 
   Future<String> _copyPickedImage(
@@ -162,6 +164,10 @@ class OotdLocalStore {
     final targetPath = p.join(targetDirectory.path, fileName);
 
     await File(pickedFile.path).copy(targetPath);
-    return targetPath;
+    final dataDirectoryPath = await this.dataDirectoryPath();
+    return normalizeManagedImagePath(
+      targetPath,
+      dataDirectoryPath: dataDirectoryPath,
+    );
   }
 }

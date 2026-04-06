@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
 
-import '../../data/local_ootd_store.dart';
-
 class PhotoSelectionPage extends StatefulWidget {
   const PhotoSelectionPage({super.key});
 
@@ -26,14 +24,14 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
   );
 
   final ImagePicker _cameraPicker = ImagePicker();
-  final OotdLocalStore _localStore = const OotdLocalStore();
   final ScrollController _scrollController = ScrollController();
 
-  List<String> _capturedImagePaths = const [];
   List<AssetEntity> _assets = const [];
   AssetPathEntity? _allAlbum;
   AssetEntity? _selectedAsset;
   PermissionState? _permissionState;
+  String? _capturedImagePath;
+  String? _capturedAssetId;
   String? _selectedCapturedPath;
   int _currentPage = 0;
   bool _loading = true;
@@ -101,23 +99,26 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
   bool get _hasSelection =>
       _selectedAsset != null || _selectedCapturedPath != null;
 
+  bool get _showsCapturedTile {
+    if (_capturedImagePath == null) {
+      return false;
+    }
+    if (_capturedAssetId == null) {
+      return true;
+    }
+    return !_assets.any((asset) => asset.id == _capturedAssetId);
+  }
+
   Widget _buildBody(ThemeData theme) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator.adaptive());
     }
 
-    final hasGalleryAccess = _permissionState?.hasAccess ?? false;
+    if (!(_permissionState?.hasAccess ?? false)) {
+      return _PermissionPanel(theme: theme);
+    }
 
-    return Column(
-      children: [
-        if (!hasGalleryAccess) _PermissionBanner(theme: theme),
-        Expanded(child: _buildGrid(showAssets: hasGalleryAccess)),
-      ],
-    );
-  }
-
-  Widget _buildGrid({required bool showAssets}) {
-    final assetCount = showAssets ? _assets.length : 0;
+    final extraTileCount = _showsCapturedTile ? 1 : 0;
 
     return GridView.builder(
       controller: _scrollController,
@@ -128,7 +129,7 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
         crossAxisSpacing: 3,
         childAspectRatio: 0.76,
       ),
-      itemCount: 1 + _capturedImagePaths.length + assetCount,
+      itemCount: _assets.length + 1 + extraTileCount,
       itemBuilder: (context, index) {
         if (index == 0) {
           return _CameraTile(
@@ -137,22 +138,20 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
           );
         }
 
-        final capturedIndex = index - 1;
-        if (capturedIndex < _capturedImagePaths.length) {
-          final imagePath = _capturedImagePaths[capturedIndex];
+        if (_showsCapturedTile && index == 1) {
           return _CapturedTile(
-            imagePath: imagePath,
-            selected: _selectedCapturedPath == imagePath,
+            imagePath: _capturedImagePath!,
+            selected: _selectedCapturedPath == _capturedImagePath,
             onTap: () {
               setState(() {
                 _selectedAsset = null;
-                _selectedCapturedPath = imagePath;
+                _selectedCapturedPath = _capturedImagePath;
               });
             },
           );
         }
 
-        final asset = _assets[index - 1 - _capturedImagePaths.length];
+        final asset = _assets[index - 1 - extraTileCount];
         return _AssetTile(
           asset: asset,
           selected: _selectedAsset?.id == asset.id,
@@ -167,8 +166,7 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
     );
   }
 
-  Future<void> _loadAssets({String? selectedId, String? selectedCapturedPath}) async {
-    final capturedImagePaths = await _localStore.loadCapturedImagePaths();
+  Future<void> _loadAssets({String? selectedId}) async {
     final permissionState = await PhotoManager.requestPermissionExtend();
     if (!mounted) {
       return;
@@ -177,14 +175,10 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
     if (!permissionState.hasAccess) {
       setState(() {
         _permissionState = permissionState;
-        _capturedImagePaths = capturedImagePaths;
         _assets = const [];
         _allAlbum = null;
         _selectedAsset = null;
-        _selectedCapturedPath = _resolvedSelectedCapturedPath(
-          capturedImagePaths,
-          selectedCapturedPath,
-        );
+        _selectedCapturedPath = null;
         _loading = false;
         _hasMore = false;
         _loadingMore = false;
@@ -205,14 +199,10 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
     if (allAlbum == null) {
       setState(() {
         _permissionState = permissionState;
-        _capturedImagePaths = capturedImagePaths;
         _assets = const [];
         _allAlbum = null;
         _selectedAsset = null;
-        _selectedCapturedPath = _resolvedSelectedCapturedPath(
-          capturedImagePaths,
-          selectedCapturedPath,
-        );
+        _selectedCapturedPath = null;
         _loading = false;
         _hasMore = false;
         _loadingMore = false;
@@ -242,42 +232,20 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
           )
         : null;
 
-    final nextSelectedCapturedPath = _resolvedSelectedCapturedPath(
-      capturedImagePaths,
-      selectedCapturedPath,
-    );
-    if (nextSelectedCapturedPath != null) {
-      selectedAsset = null;
-    }
+    final hasCapturedAsset = _capturedAssetId != null &&
+        assets.any((asset) => asset.id == _capturedAssetId);
 
     setState(() {
       _permissionState = permissionState;
-      _capturedImagePaths = capturedImagePaths;
       _allAlbum = allAlbum;
       _assets = assets;
       _selectedAsset = selectedAsset;
-      _selectedCapturedPath = nextSelectedCapturedPath;
+      _selectedCapturedPath = hasCapturedAsset ? null : _selectedCapturedPath;
       _currentPage = 0;
       _hasMore = assets.length < totalCount;
       _loading = false;
       _loadingMore = false;
     });
-  }
-
-  String? _resolvedSelectedCapturedPath(
-    List<String> capturedImagePaths,
-    String? requestedPath,
-  ) {
-    if (requestedPath != null && capturedImagePaths.contains(requestedPath)) {
-      return requestedPath;
-    }
-
-    final currentSelection = _selectedCapturedPath;
-    if (currentSelection != null && capturedImagePaths.contains(currentSelection)) {
-      return currentSelection;
-    }
-
-    return null;
   }
 
   Future<void> _loadMore() async {
@@ -326,11 +294,33 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
       return;
     }
 
-    setState(() => _capturing = true);
+    setState(() {
+      _capturing = true;
+      _capturedImagePath = picked.path;
+      _capturedAssetId = null;
+      _selectedAsset = null;
+      _selectedCapturedPath = picked.path;
+    });
 
     try {
-      final savedPath = await _localStore.saveCapturedImage(XFile(picked.path));
-      await _loadAssets(selectedCapturedPath: savedPath);
+      final entity = await PhotoManager.editor.saveImageWithPath(
+        picked.path,
+        title:
+            'ootd_${DateTime.now().millisecondsSinceEpoch}${_fileExtensionOf(picked.path)}',
+        creationDate: DateTime.now(),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _capturedAssetId = entity.id;
+      });
+
+      await _loadAssets(selectedId: entity.id);
     } catch (_) {
       if (!mounted) {
         return;
@@ -370,46 +360,55 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
 
     Navigator.of(context).pop(file.path);
   }
+
+  String _fileExtensionOf(String path) {
+    final dotIndex = path.lastIndexOf('.');
+    if (dotIndex < 0 || dotIndex == path.length - 1) {
+      return '.jpg';
+    }
+    return path.substring(dotIndex);
+  }
 }
 
-class _PermissionBanner extends StatelessWidget {
-  const _PermissionBanner({required this.theme});
+class _PermissionPanel extends StatelessWidget {
+  const _PermissionPanel({required this.theme});
 
   final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F7FC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFDCE6F6)),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.photo_library_outlined,
-            size: 18,
-            color: Color(0xFF6C87B2),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '打开相册权限后，可以看到系统相册里的图片。',
-              style: theme.textTheme.bodySmall?.copyWith(
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.photo_library_outlined,
+              size: 34,
+              color: Color(0xFF6C87B2),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '需要相册权限才能选择图片',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '打开权限后，再回来选择图片。',
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: PhotoManager.openSetting,
-            child: const Text('去设置'),
-          ),
-        ],
+            const SizedBox(height: 14),
+            FilledButton(
+              onPressed: PhotoManager.openSetting,
+              child: const Text('去设置'),
+            ),
+          ],
+        ),
       ),
     );
   }

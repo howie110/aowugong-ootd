@@ -726,6 +726,8 @@ final ootdLocalStoreProvider = Provider<OotdLocalStore>(
   (ref) => const OotdLocalStore(),
 );
 
+final ootdStorageRootProvider = Provider<String>((ref) => '');
+
 final initialOotdItemsProvider = Provider<List<MockOotdItem>>(
   (ref) => defaultMockOotdItems,
 );
@@ -757,6 +759,11 @@ MockOotdItem createDraftOotdItem(OotdOptionConfig config) {
 class OotdItemsNotifier extends Notifier<List<MockOotdItem>> {
   @override
   List<MockOotdItem> build() => ref.watch(initialOotdItemsProvider);
+
+  void replaceAll(List<MockOotdItem> items) {
+    state = List<MockOotdItem>.unmodifiable(items);
+    _persist();
+  }
 
   void updateItem({
     required String id,
@@ -897,6 +904,11 @@ class OotdFiltersNotifier extends Notifier<OotdFilterState> {
   @override
   OotdFilterState build() => ref.watch(initialOotdFiltersProvider);
 
+  void replaceAll(OotdFilterState nextState) {
+    state = nextState;
+    _persist();
+  }
+
   void toggleSeason(String season) {
     toggleOption(OotdOptionCategory.season.storageKey, season);
   }
@@ -995,6 +1007,11 @@ class OotdFiltersNotifier extends Notifier<OotdFilterState> {
 class OotdOptionConfigNotifier extends Notifier<OotdOptionConfig> {
   @override
   OotdOptionConfig build() => ref.watch(initialOotdOptionConfigProvider);
+
+  void replaceAll(OotdOptionConfig nextState) {
+    state = nextState;
+    _persist();
+  }
 
   OotdOptionEditResult addOption(OotdOptionCategory category, String rawValue) {
     return addOptionByKey(category.storageKey, rawValue);
@@ -1196,6 +1213,46 @@ List<MockOotdItem> normalizeItemsForOptions(
   return items
       .map((item) => item.normalizedForConfig(config))
       .toList(growable: false);
+}
+
+List<MockOotdItem> normalizeItemsForStorageRoot(
+  List<MockOotdItem> items,
+  String dataDirectoryPath,
+) {
+  return items
+      .map((item) => normalizeItemForStorageRoot(item, dataDirectoryPath))
+      .toList(growable: false);
+}
+
+MockOotdItem normalizeItemForStorageRoot(
+  MockOotdItem item,
+  String dataDirectoryPath,
+) {
+  return item.copyWith(
+    images: [
+      for (final image in item.images)
+        normalizeImageForStorageRoot(image, dataDirectoryPath),
+    ],
+  );
+}
+
+MockOotdImage normalizeImageForStorageRoot(
+  MockOotdImage image,
+  String dataDirectoryPath,
+) {
+  if (image.sourceType != OotdImageSourceType.file || image.path == null) {
+    return image;
+  }
+
+  final normalizedPath = normalizeManagedImagePath(
+    image.path!,
+    dataDirectoryPath: dataDirectoryPath,
+  );
+  if (normalizedPath == image.path) {
+    return image;
+  }
+
+  return MockOotdImage.file(id: image.id, filePath: normalizedPath);
 }
 
 String formatDateLabel(DateTime dateTime) {

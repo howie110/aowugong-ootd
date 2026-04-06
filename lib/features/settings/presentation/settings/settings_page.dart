@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/app_metadata.dart';
+import 'backup_export_page.dart';
+import 'backup_import_page.dart';
 import 'option_management_page.dart';
 import 'settings_placeholder_page.dart';
 
@@ -38,12 +41,24 @@ class SettingsPage extends StatelessWidget {
               _SettingsItemData(
                 icon: Icons.cloud_upload_outlined,
                 title: '数据备份',
-                onTap: () => _openPlaceholder(context, '数据备份'),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const BackupExportPage(),
+                    ),
+                  );
+                },
               ),
               _SettingsItemData(
                 icon: Icons.download_for_offline_outlined,
                 title: '备份导入',
-                onTap: () => _openPlaceholder(context, '备份导入'),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const BackupImportPage(),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -58,7 +73,7 @@ class SettingsPage extends StatelessWidget {
               _SettingsItemData(
                 icon: Icons.info_outline_rounded,
                 title: '版本信息',
-                trailingText: 'v1.0.0',
+                trailingText: appVersionLabel,
                 onTap: () => _openPlaceholder(context, '版本信息'),
               ),
             ],
@@ -67,7 +82,7 @@ class SettingsPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
-              '部分入口已预留，功能稍后接入。',
+              '帮助中心和版本信息仍为预留页，数据备份和备份导入已接入 zip 流程。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 fontSize: 10.5,

@@ -9,6 +9,7 @@ Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   const store = OotdLocalStore();
+  final dataDirectoryPath = await store.dataDirectoryPath();
   final itemsJson = await store.loadItemsJson();
   final filtersJson = await store.loadFiltersJson();
   final optionsJson = await store.loadOptionsJson();
@@ -16,17 +17,37 @@ Future<void> bootstrap() async {
   final initialItems = itemsJson == null
       ? defaultMockOotdItems
       : itemsJson.map(MockOotdItem.fromJson).toList(growable: false);
+  final normalizedStoredItems = normalizeItemsForStorageRoot(
+    initialItems,
+    dataDirectoryPath,
+  );
   final initialFilters = filtersJson == null
       ? defaultOotdFilterState
       : OotdFilterState.fromJson(filtersJson);
   final initialOptions = optionsJson == null
       ? defaultOotdOptionConfig
       : OotdOptionConfig.fromJson(optionsJson);
-  final normalizedItems = normalizeItemsForOptions(initialItems, initialOptions);
+  final normalizedItems = normalizeItemsForOptions(
+    normalizedStoredItems,
+    initialOptions,
+  );
+
+  if (itemsJson != null) {
+    final previousItemsJson = initialItems
+        .map((item) => item.toJson())
+        .toList(growable: false);
+    final nextItemsJson = normalizedStoredItems
+        .map((item) => item.toJson())
+        .toList(growable: false);
+    if (previousItemsJson.toString() != nextItemsJson.toString()) {
+      await store.saveItemsJson(nextItemsJson);
+    }
+  }
 
   runApp(
     ProviderScope(
       overrides: [
+        ootdStorageRootProvider.overrideWithValue(dataDirectoryPath),
         initialOotdItemsProvider.overrideWithValue(normalizedItems),
         initialOotdFiltersProvider.overrideWithValue(initialFilters),
         initialOotdOptionConfigProvider.overrideWithValue(initialOptions),

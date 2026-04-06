@@ -42,6 +42,9 @@ dependencies:
   photo_manager: ^3.7.1
   image_cropper: ^12.1.1
   flutter_image_compress: ^2.4.0
+  archive: ^3.6.1
+  file_picker: ^8.1.2
+  share_plus: ^10.0.2
 
 dev_dependencies:
   flutter_test:
