@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,7 +41,7 @@ Future<void> bootstrap() async {
     final nextItemsJson = normalizedStoredItems
         .map((item) => item.toJson())
         .toList(growable: false);
-    if (previousItemsJson.toString() != nextItemsJson.toString()) {
+    if (jsonEncode(previousItemsJson) != jsonEncode(nextItemsJson)) {
       await store.saveItemsJson(nextItemsJson);
     }
   }

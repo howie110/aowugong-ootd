@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../shared/navigation/smooth_page_route.dart';
 import '../home/mock_ootd_items.dart';
 import 'photo_selection_page.dart';
 import '../shared/compact_option_group.dart';
@@ -188,8 +189,8 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
 
     try {
       final selectedPath = await Navigator.of(context).push<String>(
-        MaterialPageRoute<String>(
-          builder: (_) => const PhotoSelectionPage(),
+        SmoothPageRoute<String>(
+          page: const PhotoSelectionPage(),
         ),
       );
       if (selectedPath == null) {

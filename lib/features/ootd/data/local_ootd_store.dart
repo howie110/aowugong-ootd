@@ -39,25 +39,29 @@ class OotdLocalStore {
   const OotdLocalStore();
 
   Future<List<Map<String, dynamic>>?> loadItemsJson() async {
-    final file = await _itemsFile();
-    if (!await file.exists()) {
+    try {
+      final file = await _itemsFile();
+      if (!await file.exists()) {
+        return null;
+      }
+
+      final content = await file.readAsString();
+      if (content.trim().isEmpty) {
+        return null;
+      }
+
+      final decoded = jsonDecode(content);
+      if (decoded is! List) {
+        return null;
+      }
+
+      return decoded
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
+    } catch (_) {
       return null;
     }
-
-    final content = await file.readAsString();
-    if (content.trim().isEmpty) {
-      return null;
-    }
-
-    final decoded = jsonDecode(content);
-    if (decoded is! List) {
-      return null;
-    }
-
-    return decoded
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList(growable: false);
   }
 
   Future<void> saveItemsJson(List<Map<String, dynamic>> items) async {
@@ -67,22 +71,26 @@ class OotdLocalStore {
   }
 
   Future<Map<String, dynamic>?> loadFiltersJson() async {
-    final file = await _filtersFile();
-    if (!await file.exists()) {
+    try {
+      final file = await _filtersFile();
+      if (!await file.exists()) {
+        return null;
+      }
+
+      final content = await file.readAsString();
+      if (content.trim().isEmpty) {
+        return null;
+      }
+
+      final decoded = jsonDecode(content);
+      if (decoded is! Map) {
+        return null;
+      }
+
+      return Map<String, dynamic>.from(decoded);
+    } catch (_) {
       return null;
     }
-
-    final content = await file.readAsString();
-    if (content.trim().isEmpty) {
-      return null;
-    }
-
-    final decoded = jsonDecode(content);
-    if (decoded is! Map) {
-      return null;
-    }
-
-    return Map<String, dynamic>.from(decoded);
   }
 
   Future<void> saveFiltersJson(Map<String, dynamic> filters) async {
@@ -92,22 +100,26 @@ class OotdLocalStore {
   }
 
   Future<Map<String, dynamic>?> loadOptionsJson() async {
-    final file = await _optionsFile();
-    if (!await file.exists()) {
+    try {
+      final file = await _optionsFile();
+      if (!await file.exists()) {
+        return null;
+      }
+
+      final content = await file.readAsString();
+      if (content.trim().isEmpty) {
+        return null;
+      }
+
+      final decoded = jsonDecode(content);
+      if (decoded is! Map) {
+        return null;
+      }
+
+      return Map<String, dynamic>.from(decoded);
+    } catch (_) {
       return null;
     }
-
-    final content = await file.readAsString();
-    if (content.trim().isEmpty) {
-      return null;
-    }
-
-    final decoded = jsonDecode(content);
-    if (decoded is! Map) {
-      return null;
-    }
-
-    return Map<String, dynamic>.from(decoded);
   }
 
   Future<void> saveOptionsJson(Map<String, dynamic> options) async {

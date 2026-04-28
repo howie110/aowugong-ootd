@@ -5,6 +5,7 @@ import '../features/ootd/presentation/detail/ootd_detail_page.dart';
 import '../features/ootd/presentation/home/home_page.dart';
 import '../features/ootd/presentation/home/mock_ootd_items.dart';
 import '../features/settings/presentation/settings/settings_page.dart';
+import '../shared/navigation/smooth_page_route.dart';
 import 'providers.dart';
 
 class AppShell extends ConsumerWidget {
@@ -42,7 +43,15 @@ class AppShell extends ConsumerWidget {
             transitionBuilder: (child, animation) {
               final isIncoming = child.key == ValueKey(currentTab);
               if (!isIncoming) {
-                return const SizedBox.shrink();
+                return FadeTransition(
+                  opacity: Tween<double>(begin: 1.0, end: 0.0).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeIn,
+                    ),
+                  ),
+                  child: child,
+                );
               }
 
               final curved = CurvedAnimation(
@@ -50,25 +59,14 @@ class AppShell extends ConsumerWidget {
                 curve: Curves.easeOutCubic,
               );
 
-              return SizedBox.expand(
-                child: AnimatedBuilder(
-                  animation: curved,
+              return FadeTransition(
+                opacity: curved,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.03, 0),
+                    end: Offset.zero,
+                  ).animate(curved),
                   child: child,
-                  builder: (context, animatedChild) {
-                    final progress = curved.value.clamp(0.0, 1.0);
-                    final widthFactor = progress == 0 ? 0.001 : progress;
-
-                    return ClipRect(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        widthFactor: widthFactor,
-                        child: Opacity(
-                          opacity: 0.86 + (progress * 0.14),
-                          child: animatedChild,
-                        ),
-                      ),
-                    );
-                  },
                 ),
               );
             },
@@ -133,8 +131,8 @@ class AppShell extends ConsumerWidget {
           }
 
           Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const OotdDetailPage(),
+            SmoothPageRoute<void>(
+              page: const OotdDetailPage(),
             ),
           );
         },

@@ -187,7 +187,9 @@ class OotdBackupService {
     if (rememberedPath != null && await File(rememberedPath).exists()) {
       try {
         return await readBackupPreview(rememberedPath);
-      } catch (_) {}
+      } catch (_) {
+        // Preview load failure is non-critical; return null to show no preview.
+      }
     }
 
     return null;
@@ -216,18 +218,25 @@ class OotdBackupService {
       final parsed = await _parseBackup(zipPath, includeImageContents: true);
       return await _applyParsedBackup(parsed);
     } catch (error) {
+      var rollbackFailed = false;
       try {
         final rollbackParsed = await _parseBackup(
           rollbackBackup.zipPath,
           includeImageContents: true,
         );
         await _applyParsedBackup(rollbackParsed);
-      } catch (_) {}
+      } catch (_) {
+        rollbackFailed = true;
+      }
 
       if (error is OotdBackupException) {
+        if (rollbackFailed) {
+          throw OotdBackupException('${error.message}（自动回滚也失败了，数据可能不完整）');
+        }
         rethrow;
       }
-      throw OotdBackupException('导入失败：$error');
+      final suffix = rollbackFailed ? '（自动回滚也失败了，数据可能不完整）' : '';
+      throw OotdBackupException('导入失败，请重试$suffix');
     }
   }
 
@@ -303,6 +312,12 @@ class OotdBackupService {
     final zipFile = File(zipPath);
     if (!await zipFile.exists()) {
       throw const OotdBackupException('没有找到选择的 zip 备份文件');
+    }
+
+    const maxZipSize = 500 * 1024 * 1024; // 500 MB
+    final fileSize = await zipFile.length();
+    if (fileSize > maxZipSize) {
+      throw const OotdBackupException('备份文件过大，请检查文件是否正确');
     }
 
     final archive = ZipDecoder().decodeBytes(await zipFile.readAsBytes());
@@ -405,9 +420,15 @@ class OotdBackupService {
     await imagesDirectory.create(recursive: true);
 
     for (final entry in parsed.imageContents.entries) {
-      final targetFile = File(
-        p.join(dataDirectoryPath, entry.key.replaceAll('/', Platform.pathSeparator)),
-      );
+      final sanitizedKey = entry.key.replaceAll('/', Platform.pathSeparator);
+      final resolvedPath = p.normalize(p.join(dataDirectoryPath, sanitizedKey));
+      final normalizedRoot = p.normalize(dataDirectoryPath);
+      if (!resolvedPath.startsWith(normalizedRoot + Platform.pathSeparator) &&
+          resolvedPath != normalizedRoot) {
+        throw const OotdBackupException('备份文件包含非法路径，已中止导入');
+      }
+
+      final targetFile = File(resolvedPath);
       await targetFile.parent.create(recursive: true);
       await targetFile.writeAsBytes(entry.value, flush: true);
     }

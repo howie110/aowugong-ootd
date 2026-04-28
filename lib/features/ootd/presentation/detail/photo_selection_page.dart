@@ -425,39 +425,43 @@ class _CameraTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      child: InkWell(
-        onTap: busy ? null : onTap,
-        child: Ink(
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFE2E7F0)),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (busy)
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                const Icon(
-                  Icons.photo_camera_outlined,
-                  size: 24,
-                  color: Color(0xFF4B5566),
+    return Semantics(
+      label: '拍照',
+      button: true,
+      child: Material(
+        color: Colors.white,
+        child: InkWell(
+          onTap: busy ? null : onTap,
+          child: Ink(
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFE2E7F0)),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (busy)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  const Icon(
+                    Icons.photo_camera_outlined,
+                    size: 24,
+                    color: Color(0xFF4B5566),
+                  ),
+                const SizedBox(height: 6),
+                const Text(
+                  '拍一张',
+                  style: TextStyle(
+                    color: Color(0xFF303743),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              const SizedBox(height: 6),
-              const Text(
-                '拍一张',
-                style: TextStyle(
-                  color: Color(0xFF303743),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -478,37 +482,41 @@ class _CapturedTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black12,
-      child: InkWell(
-        onTap: onTap,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(
-              child: Image.file(
-                File(imagePath),
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) {
-                  return const DecoratedBox(
-                    decoration: BoxDecoration(color: Color(0xFFF1F4F8)),
-                  );
-                },
+    return Semantics(
+      label: selected ? '已选拍摄的照片' : '拍摄的照片',
+      button: true,
+      child: Material(
+        color: Colors.black12,
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                child: Image.file(
+                  File(imagePath),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) {
+                    return const DecoratedBox(
+                      decoration: BoxDecoration(color: Color(0xFFF1F4F8)),
+                    );
+                  },
+                ),
               ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: _SelectionIndicator(selected: selected),
-            ),
-          ],
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _SelectionIndicator(selected: selected),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _AssetTile extends StatelessWidget {
+class _AssetTile extends StatefulWidget {
   const _AssetTile({
     required this.asset,
     required this.selected,
@@ -520,20 +528,36 @@ class _AssetTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_AssetTile> createState() => _AssetTileState();
+}
+
+class _AssetTileState extends State<_AssetTile> {
+  late final Future<Uint8List?> _thumbnailFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _thumbnailFuture = widget.asset.thumbnailDataWithSize(
+      const ThumbnailSize.square(360),
+      quality: 88,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black12,
-      child: InkWell(
-        onTap: onTap,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(
-              child: FutureBuilder<Uint8List?>(
-                future: asset.thumbnailDataWithSize(
-                  const ThumbnailSize.square(360),
-                  quality: 88,
-                ),
+    return Semantics(
+      label: widget.selected ? '已选照片' : '照片',
+      button: true,
+      child: Material(
+        color: Colors.black12,
+        child: InkWell(
+          onTap: widget.onTap,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                child: FutureBuilder<Uint8List?>(
+                future: _thumbnailFuture,
                 builder: (context, snapshot) {
                   if (snapshot.hasData && snapshot.data != null) {
                     return Image.memory(
@@ -559,10 +583,11 @@ class _AssetTile extends StatelessWidget {
             Positioned(
               top: 8,
               right: 8,
-              child: _SelectionIndicator(selected: selected),
+              child: _SelectionIndicator(selected: widget.selected),
             ),
           ],
         ),
+      ),
       ),
     );
   }

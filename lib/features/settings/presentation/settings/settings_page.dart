@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_metadata.dart';
+import '../../../../shared/navigation/smooth_page_route.dart';
 import 'backup_export_page.dart';
 import 'backup_import_page.dart';
 import 'option_management_page.dart';
@@ -27,8 +28,8 @@ class SettingsPage extends StatelessWidget {
                 title: '选项管理',
                 onTap: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const OptionManagementPage(),
+                    SmoothPageRoute<void>(
+                      page: const OptionManagementPage(),
                     ),
                   );
                 },
@@ -43,8 +44,8 @@ class SettingsPage extends StatelessWidget {
                 title: '数据备份',
                 onTap: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const BackupExportPage(),
+                    SmoothPageRoute<void>(
+                      page: const BackupExportPage(),
                     ),
                   );
                 },
@@ -54,8 +55,8 @@ class SettingsPage extends StatelessWidget {
                 title: '备份导入',
                 onTap: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const BackupImportPage(),
+                    SmoothPageRoute<void>(
+                      page: const BackupImportPage(),
                     ),
                   );
                 },
@@ -96,8 +97,8 @@ class SettingsPage extends StatelessWidget {
 
   void _openPlaceholder(BuildContext context, String title) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SettingsPlaceholderPage(title: title),
+      SmoothPageRoute<void>(
+        page: SettingsPlaceholderPage(title: title),
       ),
     );
   }
@@ -147,42 +148,46 @@ class _SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: data.onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-        child: Row(
-          children: [
-            Icon(data.icon, size: 18, color: const Color(0xFF2E3138)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                data.title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            if (data.trailingText != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
+    return Semantics(
+      label: data.title,
+      button: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: data.onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          child: Row(
+            children: [
+              Icon(data.icon, size: 18, color: const Color(0xFF2E3138)),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Text(
-                  data.trailingText!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF9AA7BC),
+                  data.title,
+                  style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w500,
-                    fontSize: 12,
+                    fontSize: 14,
                   ),
                 ),
               ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Color(0xFFC8D1DE),
-              size: 20,
-            ),
-          ],
+              if (data.trailingText != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Text(
+                    data.trailingText!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF9AA7BC),
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFFC8D1DE),
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );

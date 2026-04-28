@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../app/app_metadata.dart';
 import '../../../../features/ootd/presentation/home/mock_ootd_items.dart';
+import '../../../../shared/design/ootd_card.dart';
 import '../../data/ootd_backup_service.dart';
 
 class BackupExportPage extends ConsumerStatefulWidget {
@@ -132,7 +133,11 @@ class _BackupExportPageState extends ConsumerState<BackupExportPage> {
       }
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('数据备份失败：$error')));
+        ..showSnackBar(SnackBar(
+          content: Text(
+            error is OotdBackupException ? '数据备份失败：$error' : '数据备份失败，请重试',
+          ),
+        ));
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -176,13 +181,7 @@ class _GuideCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDCE6F6)),
-      ),
+    return OotdCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -223,13 +222,7 @@ class _StatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDCE6F6)),
-      ),
+    return OotdCard(
       child: Row(
         children: [
           _StatColumn(label: '穿搭', value: '$itemCount'),
@@ -290,13 +283,7 @@ class _ResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDCE6F6)),
-      ),
+    return OotdCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
