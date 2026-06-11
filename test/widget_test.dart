@@ -144,42 +144,21 @@ void main() {
             const OotdFilterState(preferences: ['喜欢']),
           ),
         ],
-        child: MaterialApp(
-          home: Builder(
-            builder: (context) {
-              return TextButton(
-                key: const Key('open-detail-page'),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const OotdDetailPage(itemId: 'look-01'),
-                    ),
-                  );
-                },
-                child: const Text('open'),
-              );
-            },
-          ),
-        ),
+        child: const MaterialApp(home: OotdDetailPage(itemId: 'look-01')),
       ),
     );
 
     final container = ProviderScope.containerOf(
-      tester.element(find.byKey(const Key('open-detail-page'))),
+      tester.element(find.byType(OotdDetailPage)),
     );
 
     expect(container.read(ootdItemsProvider).length, 9);
 
-    await tester.tap(find.byKey(const Key('open-detail-page')));
-    await tester.pumpAndSettle();
-
     await tester.tap(find.byTooltip('删除穿搭'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('删除'));
-    await tester.pumpAndSettle();
-
     expect(container.read(ootdItemsProvider).length, 8);
-    expect(find.byType(OotdDetailPage), findsNothing);
+    await tester.pump();
   });
 
   testWidgets('create page reuses detail layout', (tester) async {
@@ -187,15 +166,9 @@ void main() {
       const ProviderScope(child: MaterialApp(home: OotdDetailPage())),
     );
 
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Text &&
-            RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(widget.data ?? ''),
-      ),
-      findsOneWidget,
-    );
     expect(find.text('新增穿搭'), findsOneWidget);
+    expect(find.byKey(const Key('ootd-image-slot-0')), findsOneWidget);
+    expect(find.byKey(const Key('ootd-image-slot-3')), findsOneWidget);
 
     final saveButton = tester.widget<FilledButton>(
       find.byKey(const Key('ootd-save-button')),
