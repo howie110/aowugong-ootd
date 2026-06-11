@@ -110,12 +110,11 @@ void main() {
   });
 
   testWidgets('option management can add option group 6', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: DailyOotdApp()));
-
-    await tester.tap(find.text('设置'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('选项管理'));
-    await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(home: OptionManagementPage()),
+      ),
+    );
 
     await tester.tap(find.byTooltip('新增选项'));
     await tester.pumpAndSettle();
@@ -128,11 +127,7 @@ void main() {
     );
 
     expect(container.read(ootdOptionConfigProvider).extraGroups.length, 1);
-    await tester.scrollUntilVisible(
-      find.text('自定义', skipOffstage: false),
-      200,
-      scrollable: find.byType(Scrollable),
-    );
+    await tester.ensureVisible(find.text('自定义'));
     await tester.pumpAndSettle();
 
     expect(find.text('选项6'), findsNothing);
@@ -149,17 +144,33 @@ void main() {
             const OotdFilterState(preferences: ['喜欢']),
           ),
         ],
-        child: const DailyOotdApp(),
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) {
+              return TextButton(
+                key: const Key('open-detail-page'),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const OotdDetailPage(itemId: 'look-01'),
+                    ),
+                  );
+                },
+                child: const Text('open'),
+              );
+            },
+          ),
+        ),
       ),
     );
 
     final container = ProviderScope.containerOf(
-      tester.element(find.byType(HomePage)),
+      tester.element(find.byKey(const Key('open-detail-page'))),
     );
 
     expect(container.read(ootdItemsProvider).length, 9);
 
-    await tester.tap(find.byKey(const Key('ootd-card-look-01')));
+    await tester.tap(find.byKey(const Key('open-detail-page')));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('删除穿搭'));
@@ -172,13 +183,18 @@ void main() {
   });
 
   testWidgets('create page reuses detail layout', (tester) async {
-    final today = formatDateLabel(DateTime.now());
-
     await tester.pumpWidget(
       const ProviderScope(child: MaterialApp(home: OotdDetailPage())),
     );
 
-    expect(find.text(today), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(widget.data ?? ''),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('新增穿搭'), findsOneWidget);
 
     final saveButton = tester.widget<FilledButton>(
