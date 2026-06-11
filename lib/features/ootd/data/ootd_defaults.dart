@@ -9,10 +9,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-01',
     images: [
-      MockOotdImage.asset(
-        id: 'look-01-main',
-        assetPath: 'assets/mock/ootd/look_01.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-01-main', colorValue: 0xFFC8D7EB),
       MockOotdImage.solid(id: 'look-01-sub-01', colorValue: 0xFFE8EEF8),
     ],
     dateLabel: '2026-04-05',
@@ -25,10 +22,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-02',
     images: [
-      MockOotdImage.asset(
-        id: 'look-02-main',
-        assetPath: 'assets/mock/ootd/look_02.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-02-main', colorValue: 0xFFE7BFA8),
       MockOotdImage.solid(id: 'look-02-sub-01', colorValue: 0xFFF5E4D6),
       MockOotdImage.solid(id: 'look-02-sub-02', colorValue: 0xFFE8D5CA),
     ],
@@ -42,10 +36,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-03',
     images: [
-      MockOotdImage.asset(
-        id: 'look-03-main',
-        assetPath: 'assets/mock/ootd/look_03.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-03-main', colorValue: 0xFFD9D9D9),
     ],
     dateLabel: '2026-04-01',
     preference: '喜欢',
@@ -57,10 +48,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-04',
     images: [
-      MockOotdImage.asset(
-        id: 'look-04-main',
-        assetPath: 'assets/mock/ootd/look_04.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-04-main', colorValue: 0xFFB8CBE5),
       MockOotdImage.solid(id: 'look-04-sub-01', colorValue: 0xFFD5E6FA),
     ],
     dateLabel: '2026-03-30',
@@ -73,10 +61,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-05',
     images: [
-      MockOotdImage.asset(
-        id: 'look-05-main',
-        assetPath: 'assets/mock/ootd/look_05.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-05-main', colorValue: 0xFFE4BC8F),
       MockOotdImage.solid(id: 'look-05-sub-01', colorValue: 0xFFF4E0C8),
       MockOotdImage.solid(id: 'look-05-sub-02', colorValue: 0xFFEAD0B5),
     ],
@@ -90,10 +75,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-06',
     images: [
-      MockOotdImage.asset(
-        id: 'look-06-main',
-        assetPath: 'assets/mock/ootd/look_06.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-06-main', colorValue: 0xFFCAD1DC),
     ],
     dateLabel: '2026-03-26',
     preference: '喜欢',
@@ -105,10 +87,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-07',
     images: [
-      MockOotdImage.asset(
-        id: 'look-07-main',
-        assetPath: 'assets/mock/ootd/look_07.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-07-main', colorValue: 0xFFBFD0E5),
       MockOotdImage.solid(id: 'look-07-sub-01', colorValue: 0xFFDDE8F5),
     ],
     dateLabel: '2026-03-24',
@@ -121,10 +100,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-08',
     images: [
-      MockOotdImage.asset(
-        id: 'look-08-main',
-        assetPath: 'assets/mock/ootd/look_08.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-08-main', colorValue: 0xFFE8BE95),
       MockOotdImage.solid(id: 'look-08-sub-01', colorValue: 0xFFF7DFC9),
       MockOotdImage.solid(id: 'look-08-sub-02', colorValue: 0xFFEED0AA),
     ],
@@ -138,10 +114,7 @@ final defaultMockOotdItems = <MockOotdItem>[
   MockOotdItem(
     id: 'look-09',
     images: [
-      MockOotdImage.asset(
-        id: 'look-09-main',
-        assetPath: 'assets/mock/ootd/look_09.jpg',
-      ),
+      MockOotdImage.solid(id: 'look-09-main', colorValue: 0xFFC6C9D1),
       MockOotdImage.solid(id: 'look-09-sub-01', colorValue: 0xFFE4E6EB),
     ],
     dateLabel: '2026-03-20',

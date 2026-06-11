@@ -2,7 +2,7 @@
 
 Status: active
 Type: index
-Last Updated: 2026-04-06
+Last Updated: 2026-06-11
 Source of Truth: yes
 
 ## Summary
@@ -24,8 +24,10 @@ Source of Truth: yes
 9. [本地开发与安装](06-operations/dev-setup.md)
 10. [调试与运行](06-operations/debug-and-run.md)
 11. [发版说明](06-operations/release.md)
-12. [测试清单](06-operations/test-checklist.md)
-13. [版本记录](../CHANGELOG.md)
+12. [GitHub Release 自动打包](06-operations/github-release.md)
+13. [公开项目检查清单](06-operations/public-project-checklist.md)
+14. [测试清单](06-operations/test-checklist.md)
+15. [版本记录](../CHANGELOG.md)
 
 ## 目录说明
 
@@ -76,6 +78,8 @@ Source of Truth: yes
 - `dev-setup.md`
 - `debug-and-run.md`
 - `release.md`
+- `github-release.md`
+- `public-project-checklist.md`
 - `test-checklist.md`
 
 ### `99-archive/`

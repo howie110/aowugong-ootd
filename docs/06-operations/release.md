@@ -2,13 +2,13 @@
 
 Status: active
 Type: operations-release
-Last Updated: 2026-04-06
+Last Updated: 2026-06-11
 Source of Truth: yes
 Related: [ADR-004](../04-decisions/ADR-004-android-package-and-signing.md), [测试清单](test-checklist.md)
 
 ## Summary
 
-当前项目已经具备正式 `release apk` 打包能力。发版时最重要的 3 件事：
+当前项目已经具备正式 `release apk` 打包能力，并支持通过 GitHub Actions 在线打包上传到 GitHub Releases。发版时最重要的 3 件事：
 
 - 版本号正确
 - 包名不变
@@ -18,7 +18,7 @@ Related: [ADR-004](../04-decisions/ADR-004-android-package-and-signing.md), [测
 
 - App 名称：`每日穿搭`
 - 包名：`com.aowugong.ootd`
-- 当前版本：`1.0.3+4`
+- 当前版本：`1.0.4+5`
 
 ## Version Files
 
@@ -42,6 +42,24 @@ flutter build apk --release
 ```text
 build/app/outputs/flutter-apk/app-release.apk
 ```
+
+## GitHub Release Build
+
+仓库包含 GitHub Actions workflow：
+
+```text
+.github/workflows/android-release.yml
+```
+
+推送形如 `v1.0.4` 的 tag 后，GitHub 会自动执行：
+
+```text
+flutter pub get
+flutter test
+flutter build apk --release
+```
+
+并把 APK 上传到 GitHub Releases。配置方式见 [GitHub Release 自动打包](github-release.md)。
 
 ## Signing Files
 
@@ -93,6 +111,7 @@ build/app/outputs/flutter-apk/app-release.apk
 - 版本号已递增
 - `flutter test` 通过
 - `flutter build apk --release` 通过
+- GitHub Actions release workflow 通过
 - 安装包路径正确
 - 覆盖安装验证通过
 - 备份导出和导入验证通过
