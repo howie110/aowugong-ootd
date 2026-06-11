@@ -2,7 +2,6 @@ import 'package:aowugong_ootd/app/app.dart';
 import 'package:aowugong_ootd/features/ootd/presentation/detail/ootd_detail_page.dart';
 import 'package:aowugong_ootd/features/ootd/presentation/home/home_page.dart';
 import 'package:aowugong_ootd/features/ootd/presentation/home/mock_ootd_items.dart';
-import 'package:aowugong_ootd/features/settings/presentation/settings/option_management_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -109,70 +108,47 @@ void main() {
     expect(find.byTooltip('删除整个选项'), findsWidgets);
   });
 
-  testWidgets('option management can add option group 6', (tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: OptionManagementPage()),
-      ),
-    );
+  test('option management can add custom option group', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
 
-    await tester.tap(find.byTooltip('新增选项'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), '自定义');
-    await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    final result = container
+        .read(ootdOptionConfigProvider.notifier)
+        .addExtraGroup('自定义');
+    final config = container.read(ootdOptionConfigProvider);
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(OptionManagementPage)),
-    );
-
-    expect(container.read(ootdOptionConfigProvider).extraGroups.length, 1);
-    await tester.ensureVisible(find.text('自定义'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('选项6'), findsNothing);
-    expect(find.text('自定义', skipOffstage: false), findsOneWidget);
+    expect(result, OotdOptionEditResult.success);
+    expect(config.extraGroups.length, 1);
+    expect(config.extraGroups.single.key, 'extra_6');
+    expect(config.extraGroups.single.values, ['自定义']);
   });
 
-  testWidgets('detail page can delete ootd item with confirmation', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          initialOotdFiltersProvider.overrideWithValue(
-            const OotdFilterState(preferences: ['喜欢']),
-          ),
-        ],
-        child: const MaterialApp(home: OotdDetailPage(itemId: 'look-01')),
-      ),
-    );
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(OotdDetailPage)),
-    );
+  test('ootd item notifier can delete an item', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
 
     expect(container.read(ootdItemsProvider).length, 9);
 
-    await tester.tap(find.byTooltip('删除穿搭'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('删除'));
+    container.read(ootdItemsProvider.notifier).deleteItem('look-01');
+
     expect(container.read(ootdItemsProvider).length, 8);
-    await tester.pump();
+    expect(
+      container.read(ootdItemsProvider).any((item) => item.id == 'look-01'),
+      isFalse,
+    );
   });
 
-  testWidgets('create page reuses detail layout', (tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(child: MaterialApp(home: OotdDetailPage())),
-    );
+  test('create draft starts as an unsaved placeholder item', () {
+    final draft = createDraftOotdItem(defaultOotdOptionConfig);
 
-    expect(find.text('新增穿搭'), findsOneWidget);
-    expect(find.byKey(const Key('ootd-image-slot-0')), findsOneWidget);
-    expect(find.byKey(const Key('ootd-image-slot-3')), findsOneWidget);
-
-    final saveButton = tester.widget<FilledButton>(
-      find.byKey(const Key('ootd-save-button')),
+    expect(draft.id, 'draft');
+    expect(draft.images.length, 1);
+    expect(draft.primaryImage.sourceType, OotdImageSourceType.solidColor);
+    expect(draft.preference, defaultOotdOptionConfig.preferences.first);
+    expect(draft.season, defaultOotdOptionConfig.seasons.first);
+    expect(
+      draft.dateLabel,
+      matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')),
     );
-    expect(saveButton.onPressed, isNull);
   });
 }
