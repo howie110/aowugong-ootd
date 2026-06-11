@@ -21,54 +21,20 @@ Related: [发版说明](release.md), [测试清单](test-checklist.md)
 
 - 本机不必长期保存完整打包环境
 - 构建步骤可重复，减少“我电脑能打、别人不能打”的问题
-- 签名文件不提交到仓库，只通过 GitHub Secrets 注入
+- 签名文件不提交到仓库，由 GitHub Actions 构建时临时生成
 - Release 资产和源码版本天然绑定到 tag
 
-## Required Repository Secrets
+## Android Signing
 
-进入 GitHub 仓库：
-
-```text
-Settings -> Secrets and variables -> Actions -> Repository secrets
-```
-
-添加以下 secret：
-
-```text
-ANDROID_KEYSTORE_BASE64
-```
-
-含义：
-
-```text
-ANDROID_KEYSTORE_BASE64   release.jks 的 base64 文本
-```
-
-当前项目为了简化个人发布流程，release keystore 的密码和 alias 统一固定为：
+当前项目为了简化个人发布流程，GitHub Actions 会在每次 release 构建时临时生成 `release.jks`。keystore 的密码和 alias 统一固定为：
 
 ```text
 aowugong
 ```
 
-Windows PowerShell 生成 `ANDROID_KEYSTORE_BASE64`：
+注意：这种方式最省事，但每次构建生成的签名可能不同。如果用户已经安装旧 APK，新 APK 可能无法直接覆盖安装，需要先卸载旧版本。
 
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\release.jks")) | Set-Clipboard
-```
-
-粘贴到 GitHub Secret 时不要添加空格或说明文字。
-
-## If There Is No Existing Keystore
-
-如果还没有长期使用的 release keystore，可以直接用 GitHub Actions 手动生成：
-
-```text
-Actions -> Generate Android Keystore -> Run workflow
-```
-
-下载 artifact `android-release-keystore-private` 后，把 `ANDROID_KEYSTORE_BASE64.txt` 的内容复制到 GitHub Secret `ANDROID_KEYSTORE_BASE64`。
-
-如果要在安装 JDK 的电脑上手动生成，则命令为：
+如果以后想支持稳定覆盖升级，需要改回固定 keystore。固定 keystore 可以在安装 JDK 的电脑上手动生成：
 
 ```powershell
 New-Item -ItemType Directory -Force android\keystore | Out-Null
@@ -79,7 +45,7 @@ keytool -genkey -v -keystore android\keystore\release.jks -storetype JKS -keyalg
 
 重要规则：
 
-- 一旦公开发版并有人安装，就不要随意换 keystore
+- 一旦公开发版并希望用户长期覆盖升级，就不要随意换 keystore
 - 丢失 keystore 会影响后续覆盖安装升级
 - `android/key.properties` 和 `android/keystore/` 绝不能提交到 git
 
