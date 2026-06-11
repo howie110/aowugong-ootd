@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5+6 - 2026-06-11
+
+- 统一公开展示截图和应用版本号
+- 增加 MIT License、隐私说明、安全反馈说明、贡献说明、Issue 模板和 PR 模板
+- 增加 GitHub Release notes 分类配置
+
 ## 1.0.4+5 - 2026-06-11
 
 - 增加 GitHub Actions Android Release 自动打包流程

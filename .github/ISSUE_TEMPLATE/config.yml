@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security policy
+    url: https://github.com/howie110/aowugong-ootd/security/policy
+    about: Report security and privacy concerns carefully. Avoid posting sensitive details in public issues.
