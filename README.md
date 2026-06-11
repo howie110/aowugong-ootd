@@ -48,15 +48,13 @@ APK 会发布在 [GitHub Releases](https://github.com/howie110/aowugong-ootd/rel
 
 ## 截图
 
-公开发布前建议补充 3 到 5 张真实设备截图：
+<p align="center">
+  <img src="docs/assets/screenshots/home-grid.jpg" width="220" alt="首页穿搭网格">
+  <img src="docs/assets/screenshots/ootd-detail.jpg" width="220" alt="穿搭详情编辑">
+  <img src="docs/assets/screenshots/settings.jpg" width="220" alt="设置页面">
+</p>
 
-- 首页穿搭网格
-- 新增或编辑穿搭
-- 多维筛选
-- 选项管理
-- 备份导出和导入
-
-截图中的照片应使用自己拍摄、自己生成且授权清楚、或明确允许再分发的素材。
+首页可以按喜好、季节等维度筛选穿搭；详情页支持主图、副图和选项编辑；设置页提供选项管理、数据备份和备份导入入口。
 
 ## 项目状态
 
@@ -74,7 +72,6 @@ APK 会发布在 [GitHub Releases](https://github.com/howie110/aowugong-ootd/rel
 - `LICENSE`
 - `SECURITY.md`
 - issue 模板
-- 真实截图
 
 ## 开发
 
