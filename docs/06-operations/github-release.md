@@ -32,22 +32,22 @@ Related: [发版说明](release.md), [测试清单](test-checklist.md)
 Settings -> Secrets and variables -> Actions -> Repository secrets
 ```
 
-添加以下 secrets：
+添加以下 secret：
 
 ```text
 ANDROID_KEYSTORE_BASE64
-ANDROID_KEYSTORE_PASSWORD
-ANDROID_KEY_ALIAS
-ANDROID_KEY_PASSWORD
 ```
 
 含义：
 
 ```text
 ANDROID_KEYSTORE_BASE64   release.jks 的 base64 文本
-ANDROID_KEYSTORE_PASSWORD keystore 密码
-ANDROID_KEY_ALIAS         key alias
-ANDROID_KEY_PASSWORD      key 密码
+```
+
+当前项目为了简化个人发布流程，release keystore 的密码和 alias 统一固定为：
+
+```text
+aowugong
 ```
 
 Windows PowerShell 生成 `ANDROID_KEYSTORE_BASE64`：
@@ -60,11 +60,19 @@ Windows PowerShell 生成 `ANDROID_KEYSTORE_BASE64`：
 
 ## If There Is No Existing Keystore
 
-如果还没有长期使用的 release keystore，可以在安装 JDK 后生成一个：
+如果还没有长期使用的 release keystore，可以直接用 GitHub Actions 手动生成：
+
+```text
+Actions -> Generate Android Keystore -> Run workflow
+```
+
+下载 artifact `android-release-keystore-private` 后，把 `ANDROID_KEYSTORE_BASE64.txt` 的内容复制到 GitHub Secret `ANDROID_KEYSTORE_BASE64`。
+
+如果要在安装 JDK 的电脑上手动生成，则命令为：
 
 ```powershell
 New-Item -ItemType Directory -Force android\keystore | Out-Null
-keytool -genkey -v -keystore android\keystore\release.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias release
+keytool -genkey -v -keystore android\keystore\release.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias aowugong -storepass aowugong -keypass aowugong
 ```
 
 生成后补齐 `android/key.properties`，再本地测试一次 release build。
