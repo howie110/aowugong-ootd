@@ -1,6 +1,6 @@
-import '../data/local_ootd_store.dart';
-import '../domain/ootd_models.dart';
-import '../domain/ootd_option_config.dart';
+import '../../data/local_ootd_store.dart';
+import '../../domain/ootd_models.dart';
+import '../../domain/ootd_option_config.dart';
 
 List<MockOotdItem> normalizeItemsForOptions(
   List<MockOotdItem> items,
