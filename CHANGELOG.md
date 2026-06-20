@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.7+8 - 2026-06-20
+
+- 调整 GitHub Actions release 构建，关闭 icon tree-shaking 以适配动态图标页面
+- release build 失败时在 GitHub annotation 中输出构建日志尾巴，方便下一次快速定位
+
 ## 1.0.6+7 - 2026-06-20
 
 - 全局界面改为更接近 shadcn 的极简中性色风格
