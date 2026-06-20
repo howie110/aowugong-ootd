@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../shared/navigation/smooth_page_route.dart';
+import '../../../../shared/design/app_theme.dart';
 import '../home/mock_ootd_items.dart';
 import 'photo_selection_page.dart';
 import '../shared/compact_option_group.dart';
@@ -61,7 +62,7 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           _ImagesPanel(
             images: _draftItem.images,
@@ -72,7 +73,7 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
             onAddSecondary: _addSecondaryImage,
             onRemoveSecondary: _removeSecondaryImage,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           for (var index = 0; index < optionGroups.length; index++) ...[
             CompactOptionGroup<String>(
               options: optionGroups[index].values,
@@ -92,16 +93,19 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
                 });
               },
             ),
-            if (index != optionGroups.length - 1) const SizedBox(height: 6),
+            if (index != optionGroups.length - 1) const SizedBox(height: 8),
           ],
         ],
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: FilledButton(
-          key: const Key('ootd-save-button'),
-          onPressed: _canSave ? _save : null,
-          child: Text(widget.isCreateMode ? '新增穿搭' : '保存修改'),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            key: const Key('ootd-save-button'),
+            onPressed: _canSave ? _save : null,
+            child: Text(widget.isCreateMode ? '新增穿搭' : '保存修改'),
+          ),
         ),
       ),
     );
@@ -348,13 +352,15 @@ class _ImagesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFDCE6F6)),
+        color: ootd.cardSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ootd.cardBorder),
       ),
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(8),
       child: Row(
         children: [
           for (var index = 0; index < 4; index++) ...[
@@ -406,19 +412,20 @@ class _ImageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasImage = image != null;
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
 
     return AspectRatio(
       aspectRatio: 0.74,
       child: Material(
-        color: const Color(0xFFF7FAFE),
-        borderRadius: BorderRadius.circular(16),
+        color: ootd.mutedSurface,
+        borderRadius: BorderRadius.circular(10),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: busy ? null : hasImage ? onPreview : onChange,
           child: Ink(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFDCE6F6)),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: ootd.cardBorder),
             ),
             child: Stack(
               children: [
@@ -451,6 +458,10 @@ class _ImageTile extends StatelessWidget {
                     right: 4,
                     top: 4,
                     child: IconButton.filled(
+                      style: IconButton.styleFrom(
+                        backgroundColor: ootd.destructive,
+                        foregroundColor: ootd.selectedForeground,
+                      ),
                       onPressed: busy ? null : onRemove,
                       icon: const Icon(Icons.close_rounded),
                       tooltip: '删除副图',
@@ -476,18 +487,16 @@ class _EmptyImageSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFF1F6FD), Color(0xFFE4EDF9)],
-        ),
+      decoration: BoxDecoration(
+        color: ootd.mutedSurface,
       ),
-      child: const Center(
+      child: Center(
         child: Icon(
           Icons.add_photo_alternate_outlined,
-          color: Color(0xFF6C87B2),
+          color: ootd.subtleIcon,
           size: 18,
         ),
       ),
@@ -504,8 +513,8 @@ class _TileBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.42),
-        borderRadius: BorderRadius.circular(999),
+        color: Colors.black.withValues(alpha: 0.56),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),

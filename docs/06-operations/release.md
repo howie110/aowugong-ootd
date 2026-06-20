@@ -2,7 +2,7 @@
 
 Status: active
 Type: operations-release
-Last Updated: 2026-06-11
+Last Updated: 2026-06-20
 Source of Truth: yes
 Related: [ADR-004](../04-decisions/ADR-004-android-package-and-signing.md), [测试清单](test-checklist.md)
 
@@ -12,13 +12,13 @@ Related: [ADR-004](../04-decisions/ADR-004-android-package-and-signing.md), [测
 
 - 版本号正确
 - 包名不变
-- 签名不丢
+- 签名策略清楚
 
 ## Current Release Identity
 
 - App 名称：`每日穿搭`
 - 包名：`com.aowugong.ootd`
-- 当前版本：`1.0.5+6`
+- 当前版本：`1.0.6+7`
 
 ## Version Files
 
@@ -51,7 +51,7 @@ build/app/outputs/flutter-apk/app-release.apk
 .github/workflows/android-release.yml
 ```
 
-推送形如 `v1.0.5` 的 tag 后，GitHub 会自动执行：
+推送形如 `v1.0.6` 的 tag 后，GitHub 会自动执行：
 
 ```text
 flutter pub get
@@ -61,22 +61,24 @@ flutter build apk --release
 
 并把 APK 上传到 GitHub Releases。配置方式见 [GitHub Release 自动打包](github-release.md)。
 
-## Signing Files
+## Signing Strategy
 
-当前 `release` 依赖：
+当前 GitHub Actions release workflow 会在构建时临时生成 `release.jks`，alias 和密码都固定为：
 
-- `android/key.properties`
-- `android/keystore/`
+```text
+aowugong
+```
 
-这两者不能提交到 git。
+这适合个人项目先公开分享 APK，不需要在 GitHub Secrets 里手动填 keystore。
 
 ## Important Rule
 
-如果是长期安装并持续升级的 app：
+如果以后希望让外部用户长期覆盖升级：
 
 - 不要修改 Android 包名
-- 不要丢失 keystore
+- 改用一份固定保存的 release keystore
 - 不要重新生成不同签名去覆盖同一条升级链
+- `android/key.properties` 和 `android/keystore/` 仍然不能提交到 git
 
 ## Debug vs Release
 

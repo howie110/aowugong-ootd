@@ -9,7 +9,7 @@
 
 用它把每天的搭配、照片、喜好、季节、场景和评分整理成一个可以长期回看的私人穿搭档案。没有账号，没有云同步，没有广告；数据默认留在自己的手机里，需要迁移时再主动导出 ZIP 备份。
 
-- 当前版本：`1.0.5+6`
+- 当前版本：`1.0.6+7`
 - Android 包名：`com.aowugong.ootd`
 - 应用名称：`每日穿搭`
 
@@ -80,13 +80,13 @@ flutter test
 flutter run
 ```
 
-本机打 release APK 需要额外准备 Android release keystore，详见 [发版说明](docs/06-operations/release.md)。
+本机打 release APK 需要额外准备 Flutter、JDK、Android SDK 和 Android release keystore，详见 [发版说明](docs/06-operations/release.md)。
 
 ## 发布
 
 本项目支持 GitHub 在线打包：推送 `v*.*.*` tag 后，由 GitHub Actions 构建 signed release APK，并上传到 GitHub Releases。
 
-线上打包需要先在 GitHub Secrets 中配置 Android 签名信息，详见 [GitHub Release 自动打包](docs/06-operations/github-release.md)。
+当前 workflow 会在构建时临时生成 `aowugong` release 签名，不需要手动配置 GitHub Secrets。详见 [GitHub Release 自动打包](docs/06-operations/github-release.md)。
 
 ## 文档入口
 

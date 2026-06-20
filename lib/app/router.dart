@@ -5,6 +5,7 @@ import '../features/ootd/presentation/detail/ootd_detail_page.dart';
 import '../features/ootd/presentation/home/home_page.dart';
 import '../features/ootd/presentation/home/mock_ootd_items.dart';
 import '../features/settings/presentation/settings/settings_page.dart';
+import '../shared/design/app_theme.dart';
 import '../shared/navigation/smooth_page_route.dart';
 import 'providers.dart';
 
@@ -77,23 +78,36 @@ class AppShell extends ConsumerWidget {
           ),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: currentTab.index,
-        onDestinationSelected: (index) {
-          ref.read(rootTabProvider.notifier).setTab(RootTab.values[index]);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.grid_view_rounded),
-            selectedIcon: Icon(Icons.grid_view),
-            label: '穿搭',
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(
+              color:
+                  (Theme.of(context).extension<OotdColors>() ??
+                          OotdColors.light)
+                      .cardBorder,
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: '设置',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          selectedIndex: currentTab.index,
+          onDestinationSelected: (index) {
+            ref.read(rootTabProvider.notifier).setTab(RootTab.values[index]);
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.grid_view_rounded),
+              selectedIcon: Icon(Icons.grid_view),
+              label: '穿搭',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings),
+              label: '设置',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -115,8 +129,8 @@ class AppShell extends ConsumerWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: IconButton.filledTonal(
+      padding: const EdgeInsets.only(right: 14),
+      child: IconButton.outlined(
         onPressed: () {
           final today = formatDateLabel(DateTime.now());
           final hasToday = ref.read(ootdItemsProvider.notifier).hasItemOnDate(today);

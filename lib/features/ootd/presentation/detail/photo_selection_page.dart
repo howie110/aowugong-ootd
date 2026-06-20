@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
 
+import '../../../../shared/design/app_theme.dart';
+
 class PhotoSelectionPage extends StatefulWidget {
   const PhotoSelectionPage({super.key});
 
@@ -57,6 +59,7 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final ootd = theme.extension<OotdColors>() ?? OotdColors.light;
 
     return Scaffold(
       appBar: AppBar(title: const Text('选择图片')),
@@ -66,7 +69,10 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
           SafeArea(
             top: false,
             child: Container(
-              color: Colors.white,
+              decoration: BoxDecoration(
+                color: ootd.cardSurface,
+                border: Border(top: BorderSide(color: ootd.cardBorder)),
+              ),
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
               child: Row(
                 children: [
@@ -74,7 +80,7 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
                     Text(
                       '已选 1 张',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF5F7FB4),
+                        color: ootd.mutedForeground,
                         fontWeight: FontWeight.w600,
                       ),
                     )
@@ -377,16 +383,18 @@ class _PermissionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.photo_library_outlined,
               size: 34,
-              color: Color(0xFF6C87B2),
+              color: ootd.subtleIcon,
             ),
             const SizedBox(height: 12),
             Text(
@@ -425,16 +433,18 @@ class _CameraTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+
     return Semantics(
       label: '拍照',
       button: true,
       child: Material(
-        color: Colors.white,
+        color: ootd.cardSurface,
         child: InkWell(
           onTap: busy ? null : onTap,
           child: Ink(
             decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFE2E7F0)),
+              border: Border.all(color: ootd.cardBorder),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -446,16 +456,16 @@ class _CameraTile extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 else
-                  const Icon(
+                  Icon(
                     Icons.photo_camera_outlined,
                     size: 24,
-                    color: Color(0xFF4B5566),
+                    color: ootd.foreground,
                   ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   '拍一张',
                   style: TextStyle(
-                    color: Color(0xFF303743),
+                    color: ootd.foreground,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -497,8 +507,13 @@ class _CapturedTile extends StatelessWidget {
                   File(imagePath),
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) {
-                    return const DecoratedBox(
-                      decoration: BoxDecoration(color: Color(0xFFF1F4F8)),
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        color:
+                            (Theme.of(context).extension<OotdColors>() ??
+                                    OotdColors.light)
+                                .mutedSurface,
+                      ),
                     );
                   },
                 ),
@@ -567,8 +582,12 @@ class _AssetTileState extends State<_AssetTile> {
                     );
                   }
 
-                  return const DecoratedBox(
-                    decoration: BoxDecoration(color: Color(0xFFF1F4F8)),
+                  final ootd =
+                      Theme.of(context).extension<OotdColors>() ??
+                      OotdColors.light;
+
+                  return DecoratedBox(
+                    decoration: BoxDecoration(color: ootd.mutedSurface),
                     child: Center(
                       child: SizedBox(
                         width: 18,
@@ -600,12 +619,14 @@ class _SelectionIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       width: 28,
       height: 28,
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFF3C7BF4) : Colors.black26,
+        color: selected ? ootd.selectedSurface : Colors.black26,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2.8),
       ),

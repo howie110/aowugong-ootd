@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_metadata.dart';
+import '../../../../shared/design/app_theme.dart';
 import '../../../../shared/navigation/smooth_page_route.dart';
 import 'backup_export_page.dart';
 import 'backup_import_page.dart';
@@ -111,26 +112,22 @@ class _SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: ootd.cardSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ootd.cardBorder),
       ),
       child: Column(
         children: [
           for (var index = 0; index < items.length; index++) ...[
             _SettingsRow(data: items[index]),
             if (index != items.length - 1)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 18),
-                child: Divider(height: 1, color: Color(0xFFF0F4FA)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Divider(height: 1, color: ootd.subtleDivider),
               ),
           ],
         ],
@@ -147,18 +144,19 @@ class _SettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final ootd = theme.extension<OotdColors>() ?? OotdColors.light;
 
     return Semantics(
       label: data.title,
       button: true,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         onTap: data.onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
           child: Row(
             children: [
-              Icon(data.icon, size: 18, color: const Color(0xFF2E3138)),
+              Icon(data.icon, size: 18, color: ootd.foreground),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -175,15 +173,15 @@ class _SettingsRow extends StatelessWidget {
                   child: Text(
                     data.trailingText!,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFF9AA7BC),
+                      color: ootd.mutedForeground,
                       fontWeight: FontWeight.w500,
                       fontSize: 12,
                     ),
                   ),
                 ),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
-                color: Color(0xFFC8D1DE),
+                color: ootd.mutedForeground.withValues(alpha: 0.55),
                 size: 20,
               ),
             ],

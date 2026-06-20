@@ -2,7 +2,7 @@
 
 Status: active
 Type: task-list
-Last Updated: 2026-04-06
+Last Updated: 2026-06-20
 Source of Truth: yes
 Related: [当前执行计划](../03-plans/current.md)
 
@@ -14,7 +14,7 @@ Related: [当前执行计划](../03-plans/current.md)
 
 - [x] 应用具备 Android 可运行版本
 - [x] 固定正式包名
-- [x] 固定 release 签名
+- [x] 接入 GitHub Actions 临时 release 签名打包
 - [x] 首次安装默认空穿搭数据
 - [x] 备份导出
 - [x] 备份导入

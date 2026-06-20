@@ -6,8 +6,8 @@ class OotdCard extends StatelessWidget {
   const OotdCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(14),
-    this.borderRadius = 18.0,
+    this.padding = const EdgeInsets.all(16),
+    this.borderRadius = 12.0,
   });
 
   final Widget child;

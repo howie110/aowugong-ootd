@@ -2,7 +2,7 @@
 
 Status: accepted
 Type: adr
-Last Updated: 2026-04-06
+Last Updated: 2026-06-20
 Source of Truth: yes
 Related: [发版说明](../06-operations/release.md)
 
@@ -19,7 +19,9 @@ Related: [发版说明](../06-operations/release.md)
 当前项目已经固定：
 
 - Android 包名：`com.aowugong.ootd`
-- release 签名：使用项目自己的 keystore
+- 当前线上打包签名：GitHub Actions 构建时临时生成 `aowugong` release keystore
+
+这能降低首次公开分享 APK 的门槛，但不是长期升级的最佳方案。如果后续有稳定用户，需要替换为固定保存的 release keystore。
 
 ## Rationale
 
@@ -31,13 +33,13 @@ Related: [发版说明](../06-operations/release.md)
 
 ### Positive
 
-- release 包可以长期升级
+- 包名已经稳定，后续可以建立长期升级链
 - 数据继承路径稳定
 
 ### Negative
 
-- keystore 必须妥善保存
-- 签名丢失会直接影响后续发版
+- 当前临时签名构建可能导致新 APK 无法覆盖安装旧 APK
+- 长期升级前仍然需要准备并妥善保存固定 keystore
 
 ## Operational Rule
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/design/app_theme.dart';
+
 class CompactOptionGroup<T> extends StatelessWidget {
   const CompactOptionGroup({
     super.key,
@@ -17,8 +19,8 @@ class CompactOptionGroup<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 4,
-      runSpacing: 4,
+      spacing: 6,
+      runSpacing: 6,
       children: [
         for (final option in options)
           CompactOptionButton(
@@ -47,19 +49,20 @@ class CompactOptionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(10),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? colorScheme.primary : Colors.white,
-          borderRadius: BorderRadius.circular(999),
+          color: selected ? ootd.selectedSurface : ootd.cardSurface,
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? colorScheme.primary : const Color(0xFFD6E2F4),
+            color: selected ? ootd.selectedSurface : ootd.cardBorder,
           ),
         ),
         child: Row(
@@ -69,10 +72,11 @@ class CompactOptionButton extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: selected ? Colors.white : colorScheme.onSurface,
+                color: selected ? ootd.selectedForeground : ootd.foreground,
                 fontSize: 12,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 height: 1,
+                letterSpacing: 0,
               ),
             ),
           ],

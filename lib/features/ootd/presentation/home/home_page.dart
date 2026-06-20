@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/design/app_theme.dart';
+import '../../../../shared/design/ootd_card.dart';
 import '../detail/ootd_detail_page.dart';
 import '../shared/compact_option_group.dart';
 import '../shared/ootd_image_view.dart';
@@ -26,7 +27,7 @@ class HomePage extends ConsumerWidget {
       physics: const ClampingScrollPhysics(),
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
           sliver: SliverList(
             delegate: SliverChildListDelegate.fixed([
               for (var index = 0; index < optionGroups.length; index++) ...[
@@ -37,16 +38,16 @@ class HomePage extends ConsumerWidget {
                     filterNotifier.toggleOption(optionGroups[index].key, value);
                   },
                 ),
-                if (index != optionGroups.length - 1) const SizedBox(height: 6),
+                if (index != optionGroups.length - 1) const SizedBox(height: 8),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
                   '${filteredItems.length} 条',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -54,7 +55,7 @@ class HomePage extends ConsumerWidget {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 24),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           sliver: filteredItems.isEmpty
               ? const SliverToBoxAdapter(child: _EmptyState())
               : SliverGrid(
@@ -66,8 +67,8 @@ class HomePage extends ConsumerWidget {
                   ),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 4,
-                    mainAxisSpacing: 5,
-                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
                     childAspectRatio: 0.72,
                   ),
                 ),
@@ -110,7 +111,7 @@ class _GridEntryCard extends StatelessWidget {
 
     return Material(
       color: ootd.cardSurface,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: Semantics(
         label: '穿搭 ${item.dateLabel}',
@@ -126,7 +127,7 @@ class _GridEntryCard extends StatelessWidget {
           },
           child: Ink(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: ootd.cardBorder),
             ),
             child: Stack(
@@ -161,11 +162,11 @@ class _GridDateStamp extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: ootd.accentWarm,
+        color: ootd.mutedForeground,
         fontSize: 7.4,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         height: 1,
-        letterSpacing: 0.35,
+        letterSpacing: 0,
       ),
     );
   }
@@ -179,13 +180,8 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     final ootd = theme.extension<OotdColors>() ?? OotdColors.light;
 
-    return Container(
+    return OotdCard(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: ootd.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ootd.cardBorder),
-      ),
       child: Column(
         children: [
           Icon(

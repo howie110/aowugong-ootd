@@ -2,7 +2,7 @@
 
 Status: active
 Type: plan
-Last Updated: 2026-04-06
+Last Updated: 2026-06-20
 Source of Truth: yes
 Related: [MVP 范围](../01-product/mvp-scope.md), [当前任务清单](../05-tasks/now.md), [测试清单](../06-operations/test-checklist.md)
 
@@ -18,7 +18,7 @@ Related: [MVP 范围](../01-product/mvp-scope.md), [当前任务清单](../05-ta
 
 1. 文档与代码对齐
 2. 手动使用验证当前版本
-3. 保持 Android 升级链稳定
+3. 保持 Android 包名稳定，并明确 release 签名策略
 4. 收集下一轮交互优化点
 
 ## What Is Already Done
@@ -26,14 +26,15 @@ Related: [MVP 范围](../01-product/mvp-scope.md), [当前任务清单](../05-ta
 - 已完成 Android 可运行版本
 - 已完成首页、详情、设置页主流程
 - 已完成备份导出与导入
-- 已完成正式包名与签名配置
+- 已完成正式包名配置
+- 已完成 GitHub Actions 临时 release 签名打包流程
 - 已完成首次安装默认空数据
 - 已完成应用名和图标调整
 
 ## What Needs To Be Kept Stable
 
 - 包名 `com.aowugong.ootd`
-- release 签名链
+- release 签名策略
 - 本地 JSON 数据结构
 - `zip` 备份格式版本
 

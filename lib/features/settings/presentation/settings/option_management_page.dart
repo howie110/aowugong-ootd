@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/design/app_theme.dart';
 import '../../../ootd/presentation/home/mock_ootd_items.dart';
 
 class OptionManagementPage extends ConsumerWidget {
@@ -17,7 +18,7 @@ class OptionManagementPage extends ConsumerWidget {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: IconButton.filledTonal(
+            child: IconButton.outlined(
               onPressed: () => _handleAddGroup(context, ref),
               tooltip: '新增选项',
               icon: const Icon(Icons.add_rounded, size: 18),
@@ -211,11 +212,13 @@ class _OptionSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDCE6F6)),
+        color: ootd.cardSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ootd.cardBorder),
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
@@ -233,6 +236,10 @@ class _OptionSection extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               IconButton.filled(
+                style: IconButton.styleFrom(
+                  backgroundColor: ootd.destructive,
+                  foregroundColor: ootd.selectedForeground,
+                ),
                 onPressed: onDeleteGroup,
                 tooltip: '删除整个选项',
                 icon: const Icon(Icons.delete_outline_rounded, size: 16),
@@ -249,7 +256,7 @@ class _OptionSection extends StatelessWidget {
               onDelete: () => onDelete(values[index]),
             ),
             if (index != values.length - 1)
-              const Divider(height: 10, color: Color(0xFFF0F4FA)),
+              Divider(height: 10, color: ootd.subtleDivider),
           ],
         ],
       ),
@@ -271,6 +278,7 @@ class _OptionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final ootd = theme.extension<OotdColors>() ?? OotdColors.light;
 
     return Row(
       children: [
@@ -286,7 +294,7 @@ class _OptionRow extends StatelessWidget {
         IconButton(
           onPressed: onEdit,
           tooltip: '编辑',
-          icon: const Icon(Icons.edit_outlined, size: 18),
+          icon: Icon(Icons.edit_outlined, size: 18, color: ootd.mutedForeground),
           visualDensity: VisualDensity.compact,
           constraints: const BoxConstraints.tightFor(width: 30, height: 30),
           padding: EdgeInsets.zero,
@@ -294,7 +302,11 @@ class _OptionRow extends StatelessWidget {
         IconButton(
           onPressed: onDelete,
           tooltip: '删除',
-          icon: const Icon(Icons.delete_outline_rounded, size: 18),
+          icon: Icon(
+            Icons.delete_outline_rounded,
+            size: 18,
+            color: ootd.destructive,
+          ),
           visualDensity: VisualDensity.compact,
           constraints: const BoxConstraints.tightFor(width: 30, height: 30),
           padding: EdgeInsets.zero,

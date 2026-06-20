@@ -2,7 +2,7 @@
 
 Status: active
 Type: operations-publication
-Last Updated: 2026-06-11
+Last Updated: 2026-06-20
 Source of Truth: yes
 
 ## Required Before Public Release
@@ -13,7 +13,7 @@ Source of Truth: yes
 - `pubspec.yaml`、`lib/app/app_metadata.dart`、README、发版文档里的版本号一致
 - 选择并提交 `LICENSE`
 - 不提交 `android/key.properties`、`android/keystore/`、token、密码、私钥
-- Release APK 使用固定包名和固定 release keystore
+- Release APK 使用固定包名；如果要支持长期覆盖升级，需要改用固定保存的 release keystore
 - 真机安装、首次打开、覆盖升级、备份导入导出都验证过
 
 ## Recommended Project Files
@@ -87,7 +87,7 @@ docs/assets/screenshots/
 ## 安装提示
 
 - 这是 GitHub 分发的 APK，Android 可能提示“未知来源”
-- 覆盖安装前请确认旧版本也是同一包名和同一签名
+- 覆盖安装前请确认旧版本也是同一包名和同一签名；当前临时签名构建可能需要先卸载旧版
 
 ## 数据提醒
 
