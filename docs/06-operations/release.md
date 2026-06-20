@@ -18,7 +18,7 @@ Related: [ADR-004](../04-decisions/ADR-004-android-package-and-signing.md), [测
 
 - App 名称：`每日穿搭`
 - 包名：`com.aowugong.ootd`
-- 当前版本：`1.0.7+8`
+- 当前版本：`1.0.8+9`
 
 ## Version Files
 
@@ -51,7 +51,7 @@ build/app/outputs/flutter-apk/app-release.apk
 .github/workflows/android-release.yml
 ```
 
-推送形如 `v1.0.7` 的 tag 后，GitHub 会自动执行：
+推送形如 `v1.0.8` 的 tag 后，GitHub 会自动执行：
 
 ```text
 flutter pub get

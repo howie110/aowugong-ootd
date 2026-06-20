@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8+9 - 2026-06-20
+
+- 修正 Android Gradle 仓库源优先级，GitHub Actions 在线打包优先使用 `google()` 和 `mavenCentral()`
+- Gradle wrapper 改回官方分发源，避免 CI 命中第三方镜像 502 导致 release build 失败
+
 ## 1.0.7+8 - 2026-06-20
 
 - 调整 GitHub Actions release 构建，关闭 icon tree-shaking 以适配动态图标页面

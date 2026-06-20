@@ -13,7 +13,7 @@ Related: [发版说明](release.md), [测试清单](test-checklist.md)
 推荐流程是：
 
 1. 本地修改版本号、更新 changelog、提交代码
-2. 推送形如 `v1.0.7` 的 git tag
+2. 推送形如 `v1.0.8` 的 git tag
 3. GitHub Actions 自动测试、签名、构建 APK
 4. GitHub Releases 自动生成下载项
 
@@ -63,10 +63,10 @@ keytool -genkey -v -keystore android\keystore\release.jks -storetype JKS -keyalg
 
 ```powershell
 git add pubspec.yaml lib/app/app_metadata.dart CHANGELOG.md
-git commit -m "chore: release v1.0.7"
-git tag v1.0.7
+git commit -m "chore: release v1.0.8"
+git tag v1.0.8
 git push origin main
-git push origin v1.0.7
+git push origin v1.0.8
 ```
 
 Actions 成功后，APK 会出现在：
@@ -86,7 +86,7 @@ Actions -> Android Release -> Run workflow
 输入已经存在的 tag，例如：
 
 ```text
-v1.0.7
+v1.0.8
 ```
 
 ## Local Fallback
