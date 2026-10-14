@@ -1,7 +1,8 @@
+import '../../../ootd/presentation/home/providers/ootd_mutation_queue.dart';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -18,7 +19,8 @@ class BackupExportPage extends ConsumerStatefulWidget {
 }
 
 class _BackupExportPageState extends ConsumerState<BackupExportPage> {
-  final OotdBackupService _backupService = const OotdBackupService();
+  OotdBackupService get _backupService =>
+      OotdBackupService(store: ref.read(ootdLocalStoreProvider));
 
   OotdBackupPreview? _lastPreview;
   bool _busy = false;
@@ -32,68 +34,82 @@ class _BackupExportPageState extends ConsumerState<BackupExportPage> {
   @override
   Widget build(BuildContext context) {
     final items = ref.watch(ootdItemsProvider);
-    final totalImageCount = items.fold(0, (sum, item) => sum + item.images.length);
+    final totalImageCount = items.fold(
+      0,
+      (sum, item) => sum + item.images.length,
+    );
     final backupImageCount = items
         .expand((item) => item.images)
         .where((image) => image.sourceType == OotdImageSourceType.file)
         .length;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('数据备份')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          const _GuideCard(
-            title: '导出说明',
-            lines: [
-              '会把当前数据打包成一个 zip 备份文件。',
-              '生成后会弹出系统另存为窗口，请自己选择 zip 保存目录。',
-              '建议直接保存到 Download，这样最容易找到。',
-              'zip 内包含 manifest.json、ootd 数据和本地目录里的图片文件。',
-            ],
-          ),
-          const SizedBox(height: 12),
-          _StatsCard(
-            itemCount: items.length,
-            totalImageCount: totalImageCount,
-            backupImageCount: backupImageCount,
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _busy ? null : _exportBackup,
-            icon: _busy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.archive_outlined),
-            label: Text(_busy ? '正在生成 zip...' : '生成 zip 备份文件'),
-          ),
-          if (_lastPreview != null) ...[
-            const SizedBox(height: 12),
-            _ResultCard(preview: _lastPreview!, onShare: _busy ? null : _shareBackup),
-          ],
-          const SizedBox(height: 12),
-          Text(
-            '当前版本：$appFullVersion',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return PopScope(
+      canPop: !_busy,
+      child: AppScaffold(
+        appBar: AppPageBar(title: const Text('数据备份')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            const _GuideCard(
+              title: '导出说明',
+              lines: [
+                '会把当前数据打包成一个 zip 备份文件。',
+                '生成后会弹出系统另存为窗口，请自己选择 zip 保存目录。',
+                '建议直接保存到 Download，这样最容易找到。',
+                'zip 内包含 manifest.json、ootd 数据和本地目录里的图片文件。',
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            _StatsCard(
+              itemCount: items.length,
+              totalImageCount: totalImageCount,
+              backupImageCount: backupImageCount,
+            ),
+            const SizedBox(height: 12),
+            PrimaryButton(
+              onPressed: _busy ? null : _exportBackup,
+              leading: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(),
+                    )
+                  : const Icon(LucideIcons.archive),
+              child: Text(_busy ? '正在生成 zip...' : '生成 zip 备份文件'),
+            ),
+            if (_lastPreview != null) ...[
+              const SizedBox(height: 12),
+              _ResultCard(
+                preview: _lastPreview!,
+                onShare: _busy ? null : _shareBackup,
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              '当前版本：$appFullVersion',
+              style: Theme.of(context).typography.small.copyWith(
+                color: Theme.of(context).colorScheme.mutedForeground,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _exportBackup() async {
+    if (_busy) return;
     setState(() => _busy = true);
     try {
-      final temporaryPreview = await _backupService.exportBackup(
-        items: ref.read(ootdItemsProvider),
-        filters: ref.read(ootdFiltersProvider),
-        options: ref.read(ootdOptionConfigProvider),
-      );
+      final temporaryPreview = await ref
+          .read(ootdMutationQueueProvider)
+          .run(
+            () => _backupService.exportBackup(
+              items: ref.read(ootdItemsProvider),
+              filters: ref.read(ootdFiltersProvider),
+              options: ref.read(ootdOptionConfigProvider),
+            ),
+          );
       final bytes = await File(temporaryPreview.zipPath).readAsBytes();
       final savedPath = await FilePicker.platform.saveFile(
         dialogTitle: '选择 zip 保存位置',
@@ -108,9 +124,7 @@ class _BackupExportPageState extends ConsumerState<BackupExportPage> {
       }
 
       if (savedPath == null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('已取消选择保存位置')));
+        showAppMessage(context, '已取消选择保存位置');
         return;
       }
 
@@ -124,20 +138,15 @@ class _BackupExportPageState extends ConsumerState<BackupExportPage> {
       );
 
       setState(() => _lastPreview = preview);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('zip 备份文件已保存')));
+      showAppMessage(context, 'zip 备份文件已保存');
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(
-          content: Text(
-            error is OotdBackupException ? '数据备份失败：$error' : '数据备份失败，请重试',
-          ),
-        ));
+      showAppMessage(
+        context,
+        error is OotdBackupException ? '数据备份失败：$error' : '数据备份失败，请重试',
+      );
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -151,15 +160,24 @@ class _BackupExportPageState extends ConsumerState<BackupExportPage> {
       return;
     }
 
-    await Share.shareXFiles(
-      [XFile(preview.zipPath)],
-      text: '穿搭备份 zip 已生成，可以直接发送到新手机导入。',
-      subject: preview.fileName,
-    );
+    try {
+      await Share.shareXFiles(
+        [XFile(preview.zipPath)],
+        text: '穿搭备份 zip 已生成，可以直接发送到新手机导入。',
+        subject: preview.fileName,
+      );
+    } catch (_) {
+      if (mounted) showAppMessage(context, '分享失败，请检查备份文件是否还在');
+    }
   }
 
   Future<void> _loadLatestPreview() async {
-    final preview = await _backupService.loadLatestExportPreview();
+    OotdBackupPreview? preview;
+    try {
+      preview = await _backupService.loadLatestExportPreview();
+    } catch (_) {
+      return;
+    }
     if (!mounted || preview == null) {
       return;
     }
@@ -169,10 +187,7 @@ class _BackupExportPageState extends ConsumerState<BackupExportPage> {
 }
 
 class _GuideCard extends StatelessWidget {
-  const _GuideCard({
-    required this.title,
-    required this.lines,
-  });
+  const _GuideCard({required this.title, required this.lines});
 
   final String title;
   final List<String> lines;
@@ -187,7 +202,7 @@ class _GuideCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: theme.textTheme.titleMedium?.copyWith(
+            style: theme.typography.large.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 14,
             ),
@@ -196,8 +211,8 @@ class _GuideCard extends StatelessWidget {
           for (final line in lines) ...[
             Text(
               line,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              style: theme.typography.small.copyWith(
+                color: theme.colorScheme.mutedForeground,
                 height: 1.45,
               ),
             ),
@@ -235,10 +250,7 @@ class _StatsCard extends StatelessWidget {
 }
 
 class _StatColumn extends StatelessWidget {
-  const _StatColumn({
-    required this.label,
-    required this.value,
-  });
+  const _StatColumn({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -252,7 +264,7 @@ class _StatColumn extends StatelessWidget {
         children: [
           Text(
             value,
-            style: theme.textTheme.titleLarge?.copyWith(
+            style: theme.typography.xLarge.copyWith(
               fontWeight: FontWeight.w800,
               fontSize: 18,
             ),
@@ -260,8 +272,8 @@ class _StatColumn extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+            style: theme.typography.small.copyWith(
+              color: theme.colorScheme.mutedForeground,
             ),
           ),
         ],
@@ -271,10 +283,7 @@ class _StatColumn extends StatelessWidget {
 }
 
 class _ResultCard extends StatelessWidget {
-  const _ResultCard({
-    required this.preview,
-    required this.onShare,
-  });
+  const _ResultCard({required this.preview, required this.onShare});
 
   final OotdBackupPreview preview;
   final VoidCallback? onShare;
@@ -289,7 +298,7 @@ class _ResultCard extends StatelessWidget {
         children: [
           Text(
             '最近一次生成',
-            style: theme.textTheme.titleMedium?.copyWith(
+            style: theme.typography.large.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 14,
             ),
@@ -302,10 +311,10 @@ class _ResultCard extends StatelessWidget {
           _ResultLine(label: '穿搭图', value: '${preview.ootdImageCount}'),
           _ResultLine(label: 'zip图', value: '${preview.imageCount}'),
           const SizedBox(height: 10),
-          OutlinedButton.icon(
+          OutlineButton(
             onPressed: onShare,
-            icon: const Icon(Icons.share_outlined),
-            label: const Text('再次分享 zip'),
+            leading: const Icon(LucideIcons.share2),
+            child: const Text('再次分享 zip'),
           ),
         ],
       ),
@@ -314,10 +323,7 @@ class _ResultCard extends StatelessWidget {
 }
 
 class _ResultLine extends StatelessWidget {
-  const _ResultLine({
-    required this.label,
-    required this.value,
-  });
+  const _ResultLine({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -335,15 +341,15 @@ class _ResultLine extends StatelessWidget {
             width: 64,
             child: Text(
               label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              style: theme.typography.small.copyWith(
+                color: theme.colorScheme.mutedForeground,
               ),
             ),
           ),
           Expanded(
             child: SelectableText(
               value,
-              style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+              style: theme.typography.small.copyWith(height: 1.35),
             ),
           ),
         ],

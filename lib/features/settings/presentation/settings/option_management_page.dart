@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/design/app_theme.dart';
@@ -12,16 +12,16 @@ class OptionManagementPage extends ConsumerWidget {
     final config = ref.watch(ootdOptionConfigProvider);
     final groups = config.allGroups;
 
-    return Scaffold(
-      appBar: AppBar(
+    return AppScaffold(
+      appBar: AppPageBar(
         title: const Text('选项管理'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: IconButton.outlined(
+            child: AppIconButton(
               onPressed: () => _handleAddGroup(context, ref),
               tooltip: '新增选项',
-              icon: const Icon(Icons.add_rounded, size: 18),
+              icon: const Icon(LucideIcons.plus, size: 18),
             ),
           ),
         ],
@@ -47,65 +47,38 @@ class OptionManagementPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleAddGroup(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final value = await _showOptionInputDialog(
-      context,
-      title: '新增选项',
-      hintText: '输入首个选项内容',
-    );
-    if (!context.mounted || value == null) {
-      return;
-    }
-
-    final result = ref.read(ootdOptionConfigProvider.notifier).addExtraGroup(
-      value,
-    );
-    if (!context.mounted) {
-      return;
-    }
-
-    _showResult(context, result, successMessage: '已新增选项');
-  }
+  Future<void> _handleAddGroup(BuildContext context, WidgetRef ref) =>
+      _editOption(
+        context,
+        title: '新增选项',
+        hintText: '输入首个选项内容',
+        onSave: ref.read(ootdOptionConfigProvider.notifier).addExtraGroup,
+      );
 
   Future<void> _handleAddValue(
     BuildContext context,
     WidgetRef ref,
     String key,
-  ) async {
-    final value = await _showOptionInputDialog(context, title: '新增选项');
-    if (!context.mounted || value == null) {
-      return;
-    }
-
-    final result = ref
-        .read(ootdOptionConfigProvider.notifier)
-        .addOptionByKey(key, value);
-    _showResult(context, result);
-  }
+  ) => _editOption(
+    context,
+    title: '新增选项',
+    onSave: (value) =>
+        ref.read(ootdOptionConfigProvider.notifier).addOptionByKey(key, value),
+  );
 
   Future<void> _handleEditValue(
     BuildContext context,
     WidgetRef ref,
     String key,
     String currentValue,
-  ) async {
-    final value = await _showOptionInputDialog(
-      context,
-      title: '编辑选项',
-      initialValue: currentValue,
-    );
-    if (!context.mounted || value == null) {
-      return;
-    }
-
-    final result = ref
+  ) => _editOption(
+    context,
+    title: '编辑选项',
+    initialValue: currentValue,
+    onSave: (value) => ref
         .read(ootdOptionConfigProvider.notifier)
-        .renameOptionByKey(key, currentValue, value);
-    _showResult(context, result);
-  }
+        .renameOptionByKey(key, currentValue, value),
+  );
 
   Future<void> _handleDeleteValue(
     BuildContext context,
@@ -113,18 +86,18 @@ class OptionManagementPage extends ConsumerWidget {
     String key,
     String currentValue,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('删除选项'),
           content: const Text('删除后，已有穿搭会自动切换到同组的其他选项。是否继续？'),
           actions: [
-            TextButton(
+            GhostButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('取消'),
             ),
-            FilledButton(
+            PrimaryButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('删除'),
             ),
@@ -147,18 +120,18 @@ class OptionManagementPage extends ConsumerWidget {
     WidgetRef ref,
     String key,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('删除整个选项'),
           content: const Text('删除后，这一组选项会从筛选和穿搭详情中移除。是否继续？'),
           actions: [
-            TextButton(
+            GhostButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('取消'),
             ),
-            FilledButton(
+            PrimaryButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('删除'),
             ),
@@ -171,27 +144,31 @@ class OptionManagementPage extends ConsumerWidget {
       return;
     }
 
-    final result = ref.read(ootdOptionConfigProvider.notifier).deleteGroupByKey(
-      key,
-    );
+    final result = ref
+        .read(ootdOptionConfigProvider.notifier)
+        .deleteGroupByKey(key);
     _showResult(context, result, successMessage: '已删除选项');
   }
 
-  void _showResult(
+  Future<void> _showResult(
     BuildContext context,
-    OotdOptionEditResult result, {
+    Future<OotdOptionEditResult> pending, {
     String successMessage = '已保存',
-  }) {
-    final message = switch (result) {
-      OotdOptionEditResult.success => successMessage,
-      OotdOptionEditResult.emptyValue => '内容不能为空',
-      OotdOptionEditResult.duplicateValue => '这个选项已经存在',
-      OotdOptionEditResult.minimumReached => '每一组至少保留一个选项',
-    };
+  }) async {
+    try {
+      final result = await pending;
+      if (!context.mounted) return;
+      final message = switch (result) {
+        OotdOptionEditResult.success => successMessage,
+        OotdOptionEditResult.emptyValue => '内容不能为空',
+        OotdOptionEditResult.duplicateValue => '这个选项已经存在',
+        OotdOptionEditResult.minimumReached => '每一组至少保留一个选项',
+      };
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      showAppMessage(context, message);
+    } catch (_) {
+      if (context.mounted) showAppMessage(context, '保存失败，请重试');
+    }
   }
 }
 
@@ -212,14 +189,9 @@ class _OptionSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: ootd.cardSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ootd.cardBorder),
-      ),
+    return Card(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,24 +199,16 @@ class _OptionSection extends StatelessWidget {
           Row(
             children: [
               const Spacer(),
-              IconButton.filledTonal(
+              AppIconButton(
                 onPressed: onAdd,
                 tooltip: '新增内容',
-                icon: const Icon(Icons.add_rounded, size: 16),
-                constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-                padding: EdgeInsets.zero,
+                icon: const Icon(LucideIcons.plus, size: 16),
               ),
               const SizedBox(width: 6),
-              IconButton.filled(
-                style: IconButton.styleFrom(
-                  backgroundColor: ootd.destructive,
-                  foregroundColor: ootd.selectedForeground,
-                ),
+              AppIconButton(
                 onPressed: onDeleteGroup,
                 tooltip: '删除整个选项',
-                icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-                padding: EdgeInsets.zero,
+                icon: const Icon(LucideIcons.trash2, size: 16),
               ),
             ],
           ),
@@ -278,79 +242,140 @@ class _OptionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final ootd = theme.extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return Row(
       children: [
         Expanded(
           child: Text(
             value,
-            style: theme.textTheme.bodyLarge?.copyWith(
+            style: theme.typography.large.copyWith(
               fontWeight: FontWeight.w600,
               fontSize: 13,
             ),
           ),
         ),
-        IconButton(
+        AppIconButton(
           onPressed: onEdit,
           tooltip: '编辑',
-          icon: Icon(Icons.edit_outlined, size: 18, color: ootd.mutedForeground),
-          visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-          padding: EdgeInsets.zero,
+          icon: Icon(LucideIcons.pencil, size: 18, color: ootd.mutedForeground),
         ),
-        IconButton(
+        AppIconButton(
           onPressed: onDelete,
           tooltip: '删除',
-          icon: Icon(
-            Icons.delete_outline_rounded,
-            size: 18,
-            color: ootd.destructive,
-          ),
-          visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-          padding: EdgeInsets.zero,
+          icon: Icon(LucideIcons.trash2, size: 18, color: ootd.destructive),
         ),
       ],
     );
   }
 }
 
-Future<String?> _showOptionInputDialog(
+Future<void> _editOption(
   BuildContext context, {
   required String title,
   String initialValue = '',
   String hintText = '输入选项内容',
+  required Future<OotdOptionEditResult> Function(String) onSave,
 }) async {
-  final controller = TextEditingController(text: initialValue);
+  await showAppDialog<void>(
+    context: context,
+    builder: (_) => _OptionInputDialog(
+      title: title,
+      initialValue: initialValue,
+      hintText: hintText,
+      onSave: onSave,
+    ),
+  );
+}
 
-  try {
-    return await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(title),
-          content: TextField(
-            controller: controller,
+class _OptionInputDialog extends StatefulWidget {
+  const _OptionInputDialog({
+    required this.title,
+    required this.initialValue,
+    required this.hintText,
+    required this.onSave,
+  });
+  final String title, initialValue, hintText;
+  final Future<OotdOptionEditResult> Function(String) onSave;
+  @override
+  State<_OptionInputDialog> createState() => _OptionInputDialogState();
+}
+
+class _OptionInputDialogState extends State<_OptionInputDialog> {
+  late final _controller = TextEditingController(text: widget.initialValue);
+  bool _busy = false;
+  String? _error;
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final result = await widget.onSave(_controller.text);
+      if (!mounted) return;
+      if (result == OotdOptionEditResult.success) {
+        Navigator.pop(context);
+        return;
+      }
+      setState(
+        () => _error = switch (result) {
+          OotdOptionEditResult.emptyValue => '内容不能为空',
+          OotdOptionEditResult.duplicateValue => '这个选项已经存在',
+          OotdOptionEditResult.minimumReached => '每一组至少保留一个选项',
+          OotdOptionEditResult.success => null,
+        },
+      );
+    } catch (_) {
+      if (mounted) setState(() => _error = '保存失败，内容已保留，请重试');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_busy,
+    child: AlertDialog(
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
             autofocus: true,
-            decoration: InputDecoration(hintText: hintText),
+            enabled: !_busy,
+            hintText: widget.hintText,
+            onSubmitted: (_) => _save(),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(controller.text);
-              },
-              child: const Text('保存'),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.destructive,
+              ),
             ),
           ],
-        );
-      },
-    );
-  } finally {
-    controller.dispose();
-  }
+        ],
+      ),
+      actions: [
+        GhostButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        PrimaryButton(
+          onPressed: _busy ? null : _save,
+          child: Text(_busy ? '保存中…' : '保存'),
+        ),
+      ],
+    ),
+  );
 }

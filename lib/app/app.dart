@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 
 import '../shared/design/app_theme.dart';
 import 'router.dart';
@@ -8,7 +8,7 @@ class DailyOotdApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return ShadcnApp(
       title: '每日穿搭',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
@@ -18,7 +18,7 @@ class DailyOotdApp extends StatelessWidget {
   }
 }
 
-class AppScrollBehavior extends MaterialScrollBehavior {
+class AppScrollBehavior extends ScrollBehavior {
   const AppScrollBehavior();
 
   @override

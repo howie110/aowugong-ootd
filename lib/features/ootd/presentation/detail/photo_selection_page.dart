@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
 
@@ -14,15 +14,12 @@ class PhotoSelectionPage extends StatefulWidget {
   State<PhotoSelectionPage> createState() => _PhotoSelectionPageState();
 }
 
-class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
+class _PhotoSelectionPageState extends State<PhotoSelectionPage>
+    with WidgetsBindingObserver {
   static const int _pageSize = 90;
   static final PMFilter _filterOption = FilterOptionGroup(
-    imageOption: FilterOption(
-      sizeConstraint: SizeConstraint(ignoreSize: true),
-    ),
-    orders: [
-      OrderOption(type: OrderOptionType.createDate, asc: false),
-    ],
+    imageOption: FilterOption(sizeConstraint: SizeConstraint(ignoreSize: true)),
+    orders: [OrderOption(type: OrderOptionType.createDate, asc: false)],
   );
 
   final ImagePicker _cameraPicker = ImagePicker();
@@ -37,6 +34,10 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
   String? _selectedCapturedPath;
   int _currentPage = 0;
   bool _loading = true;
+  bool _refreshRunning = false;
+  bool _selecting = false;
+  int _generation = 0;
+  String? _loadError;
   bool _loadingMore = false;
   bool _capturing = false;
   bool _hasMore = false;
@@ -44,12 +45,14 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_handleScroll);
     _loadAssets();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();
@@ -57,12 +60,17 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_capturing) _loadAssets();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final ootd = theme.extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('选择图片')),
+    return AppScaffold(
+      appBar: AppPageBar(title: const Text('选择图片')),
       body: Column(
         children: [
           Expanded(child: _buildBody(theme)),
@@ -79,7 +87,7 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
                   if (_hasSelection)
                     Text(
                       '已选 1 张',
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                      style: theme.typography.base.copyWith(
                         color: ootd.mutedForeground,
                         fontWeight: FontWeight.w600,
                       ),
@@ -87,8 +95,8 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
                   else
                     const SizedBox.shrink(),
                   const Spacer(),
-                  FilledButton(
-                    onPressed: !_hasSelection || _capturing
+                  PrimaryButton(
+                    onPressed: !_hasSelection || _capturing || _selecting
                         ? null
                         : _confirmSelection,
                     child: const Text('选择图片'),
@@ -117,9 +125,21 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
 
   Widget _buildBody(ThemeData theme) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator.adaptive());
+      return const Center(child: CircularProgressIndicator());
     }
 
+    if (_loadError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_loadError!),
+            const SizedBox(height: 12),
+            OutlineButton(onPressed: _loadAssets, child: const Text('重新加载')),
+          ],
+        ),
+      );
+    }
     if (!(_permissionState?.hasAccess ?? false)) {
       return _PermissionPanel(theme: theme);
     }
@@ -138,10 +158,7 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
       itemCount: _assets.length + 1 + extraTileCount,
       itemBuilder: (context, index) {
         if (index == 0) {
-          return _CameraTile(
-            busy: _capturing,
-            onTap: _captureImage,
-          );
+          return _CameraTile(busy: _capturing, onTap: _captureImage);
         }
 
         if (_showsCapturedTile && index == 1) {
@@ -159,6 +176,7 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
 
         final asset = _assets[index - 1 - extraTileCount];
         return _AssetTile(
+          key: ValueKey(asset.id),
           asset: asset,
           selected: _selectedAsset?.id == asset.id,
           onTap: () {
@@ -173,112 +191,134 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
   }
 
   Future<void> _loadAssets({String? selectedId}) async {
-    final permissionState = await PhotoManager.requestPermissionExtend();
-    if (!mounted) {
-      return;
-    }
+    if (_refreshRunning) return;
+    _refreshRunning = true;
+    _generation++;
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final permissionState = await PhotoManager.requestPermissionExtend();
+      if (!mounted) {
+        return;
+      }
 
-    if (!permissionState.hasAccess) {
-      setState(() {
-        _permissionState = permissionState;
-        _assets = const [];
-        _allAlbum = null;
-        _selectedAsset = null;
-        _selectedCapturedPath = null;
-        _loading = false;
-        _hasMore = false;
-        _loadingMore = false;
-      });
-      return;
-    }
+      if (!permissionState.hasAccess) {
+        setState(() {
+          _permissionState = permissionState;
+          _assets = const [];
+          _allAlbum = null;
+          _selectedAsset = null;
+          _selectedCapturedPath = null;
+          _loading = false;
+          _hasMore = false;
+          _loadingMore = false;
+        });
+        return;
+      }
 
-    final albums = await PhotoManager.getAssetPathList(
-      type: RequestType.image,
-      onlyAll: true,
-      filterOption: _filterOption,
-    );
-    if (!mounted) {
-      return;
-    }
+      final albums = await PhotoManager.getAssetPathList(
+        type: RequestType.image,
+        onlyAll: true,
+        filterOption: _filterOption,
+      );
+      if (!mounted) {
+        return;
+      }
 
-    final allAlbum = albums.isNotEmpty ? albums.first : null;
-    if (allAlbum == null) {
-      setState(() {
-        _permissionState = permissionState;
-        _assets = const [];
-        _allAlbum = null;
-        _selectedAsset = null;
-        _selectedCapturedPath = null;
-        _loading = false;
-        _hasMore = false;
-        _loadingMore = false;
-      });
-      return;
-    }
+      final allAlbum = albums.isNotEmpty ? albums.first : null;
+      if (allAlbum == null) {
+        setState(() {
+          _permissionState = permissionState;
+          _assets = const [];
+          _allAlbum = null;
+          _selectedAsset = null;
+          _selectedCapturedPath = null;
+          _loading = false;
+          _hasMore = false;
+          _loadingMore = false;
+        });
+        return;
+      }
 
-    final assets = await allAlbum.getAssetListPaged(page: 0, size: _pageSize);
-    final totalCount = await allAlbum.assetCountAsync;
-    if (!mounted) {
-      return;
-    }
+      final assets = await allAlbum.getAssetListPaged(page: 0, size: _pageSize);
+      final totalCount = await allAlbum.assetCountAsync;
+      if (!mounted) {
+        return;
+      }
 
-    AssetEntity? selectedAsset;
-    if (selectedId != null) {
-      for (final asset in assets) {
-        if (asset.id == selectedId) {
-          selectedAsset = asset;
-          break;
+      AssetEntity? selectedAsset;
+      if (selectedId != null) {
+        for (final asset in assets) {
+          if (asset.id == selectedId) {
+            selectedAsset = asset;
+            break;
+          }
         }
       }
+      selectedAsset ??= _selectedAsset != null
+          ? assets.cast<AssetEntity?>().firstWhere(
+              (asset) => asset?.id == _selectedAsset!.id,
+              orElse: () => null,
+            )
+          : null;
+
+      final hasCapturedAsset =
+          _capturedAssetId != null &&
+          assets.any((asset) => asset.id == _capturedAssetId);
+
+      setState(() {
+        _permissionState = permissionState;
+        _allAlbum = allAlbum;
+        _assets = assets;
+        _selectedAsset = selectedAsset;
+        _selectedCapturedPath = hasCapturedAsset ? null : _selectedCapturedPath;
+        _currentPage = 0;
+        _hasMore = assets.length < totalCount;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadError = '相册加载失败，请重试');
+    } finally {
+      _refreshRunning = false;
+      if (mounted) setState(() => _loading = false);
     }
-    selectedAsset ??= _selectedAsset != null
-        ? assets.cast<AssetEntity?>().firstWhere(
-            (asset) => asset?.id == _selectedAsset!.id,
-            orElse: () => null,
-          )
-        : null;
-
-    final hasCapturedAsset = _capturedAssetId != null &&
-        assets.any((asset) => asset.id == _capturedAssetId);
-
-    setState(() {
-      _permissionState = permissionState;
-      _allAlbum = allAlbum;
-      _assets = assets;
-      _selectedAsset = selectedAsset;
-      _selectedCapturedPath = hasCapturedAsset ? null : _selectedCapturedPath;
-      _currentPage = 0;
-      _hasMore = assets.length < totalCount;
-      _loading = false;
-      _loadingMore = false;
-    });
   }
 
   Future<void> _loadMore() async {
     final album = _allAlbum;
-    if (_loadingMore || !_hasMore || album == null) {
+    if (_refreshRunning || _loadingMore || !_hasMore || album == null) {
       return;
     }
 
     setState(() => _loadingMore = true);
 
-    final nextPage = _currentPage + 1;
-    final nextAssets = await album.getAssetListPaged(
-      page: nextPage,
-      size: _pageSize,
-    );
-    final totalCount = await album.assetCountAsync;
+    final generation = _generation;
+    try {
+      final nextPage = _currentPage + 1;
+      final nextAssets = await album.getAssetListPaged(
+        page: nextPage,
+        size: _pageSize,
+      );
+      final totalCount = await album.assetCountAsync;
 
-    if (!mounted) {
-      return;
+      if (!mounted || generation != _generation) {
+        return;
+      }
+
+      setState(() {
+        _assets = [..._assets, ...nextAssets];
+        _currentPage = nextPage;
+        _hasMore = _assets.length < totalCount;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) showAppMessage(context, '加载更多照片失败，继续滚动可重试');
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
     }
-
-    setState(() {
-      _assets = [..._assets, ...nextAssets];
-      _currentPage = nextPage;
-      _hasMore = _assets.length < totalCount;
-      _loadingMore = false;
-    });
   }
 
   void _handleScroll() {
@@ -292,23 +332,24 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
       return;
     }
 
-    final picked = await _cameraPicker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 92,
-    );
-    if (!mounted || picked == null) {
-      return;
-    }
-
-    setState(() {
-      _capturing = true;
-      _capturedImagePath = picked.path;
-      _capturedAssetId = null;
-      _selectedAsset = null;
-      _selectedCapturedPath = picked.path;
-    });
-
+    setState(() => _capturing = true);
     try {
+      final picked = await _cameraPicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 92,
+      );
+      if (!mounted || picked == null) {
+        return;
+      }
+
+      setState(() {
+        _capturing = true;
+        _capturedImagePath = picked.path;
+        _capturedAssetId = null;
+        _selectedAsset = null;
+        _selectedCapturedPath = picked.path;
+      });
+
       final entity = await PhotoManager.editor.saveImageWithPath(
         picked.path,
         title:
@@ -331,9 +372,7 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('拍照失败，请重试')));
+      showAppMessage(context, '拍照失败，请重试');
     } finally {
       if (mounted) {
         setState(() => _capturing = false);
@@ -342,29 +381,35 @@ class _PhotoSelectionPageState extends State<PhotoSelectionPage> {
   }
 
   Future<void> _confirmSelection() async {
-    final selectedCapturedPath = _selectedCapturedPath;
-    if (selectedCapturedPath != null) {
-      Navigator.of(context).pop(selectedCapturedPath);
-      return;
-    }
+    if (_selecting) return;
+    setState(() => _selecting = true);
+    try {
+      final selectedCapturedPath = _selectedCapturedPath;
+      if (selectedCapturedPath != null) {
+        Navigator.of(context).pop(selectedCapturedPath);
+        return;
+      }
 
-    final selectedAsset = _selectedAsset;
-    if (selectedAsset == null) {
-      return;
-    }
+      final selectedAsset = _selectedAsset;
+      if (selectedAsset == null) {
+        return;
+      }
 
-    final file = await selectedAsset.file;
-    if (!mounted) {
-      return;
-    }
-    if (file == null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('读取图片失败，请重试')));
-      return;
-    }
+      final file = await selectedAsset.file;
+      if (!mounted) {
+        return;
+      }
+      if (file == null) {
+        showAppMessage(context, '读取图片失败，请重试');
+        return;
+      }
 
-    Navigator.of(context).pop(file.path);
+      Navigator.of(context).pop(file.path);
+    } catch (_) {
+      if (mounted) showAppMessage(context, '读取图片失败，请重试');
+    } finally {
+      if (mounted) setState(() => _selecting = false);
+    }
   }
 
   String _fileExtensionOf(String path) {
@@ -383,7 +428,7 @@ class _PermissionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return Center(
       child: Padding(
@@ -391,27 +436,23 @@ class _PermissionPanel extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.photo_library_outlined,
-              size: 34,
-              color: ootd.subtleIcon,
-            ),
+            Icon(LucideIcons.images, size: 34, color: ootd.subtleIcon),
             const SizedBox(height: 12),
             Text(
               '需要相册权限才能选择图片',
-              style: theme.textTheme.titleMedium?.copyWith(
+              style: theme.typography.large.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               '打开权限后，再回来选择图片。',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              style: theme.typography.base.copyWith(
+                color: theme.colorScheme.mutedForeground,
               ),
             ),
             const SizedBox(height: 14),
-            FilledButton(
+            PrimaryButton(
               onPressed: PhotoManager.openSetting,
               child: const Text('去设置'),
             ),
@@ -423,26 +464,23 @@ class _PermissionPanel extends StatelessWidget {
 }
 
 class _CameraTile extends StatelessWidget {
-  const _CameraTile({
-    required this.busy,
-    required this.onTap,
-  });
+  const _CameraTile({required this.busy, required this.onTap});
 
   final bool busy;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return Semantics(
       label: '拍照',
       button: true,
-      child: Material(
+      child: AppImageSurface(
         color: ootd.cardSurface,
-        child: InkWell(
+        child: AppPressable(
           onTap: busy ? null : onTap,
-          child: Ink(
+          child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: ootd.cardBorder),
             ),
@@ -453,14 +491,10 @@ class _CameraTile extends StatelessWidget {
                   const SizedBox(
                     width: 24,
                     height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(),
                   )
                 else
-                  Icon(
-                    Icons.photo_camera_outlined,
-                    size: 24,
-                    color: ootd.foreground,
-                  ),
+                  Icon(LucideIcons.camera, size: 24, color: ootd.foreground),
                 const SizedBox(height: 6),
                 Text(
                   '拍一张',
@@ -495,9 +529,9 @@ class _CapturedTile extends StatelessWidget {
     return Semantics(
       label: selected ? '已选拍摄的照片' : '拍摄的照片',
       button: true,
-      child: Material(
-        color: Colors.black12,
-        child: InkWell(
+      child: AppImageSurface(
+        color: const Color(0x1F000000),
+        child: AppPressable(
           onTap: onTap,
           child: Stack(
             fit: StackFit.expand,
@@ -509,10 +543,7 @@ class _CapturedTile extends StatelessWidget {
                   errorBuilder: (_, _, _) {
                     return DecoratedBox(
                       decoration: BoxDecoration(
-                        color:
-                            (Theme.of(context).extension<OotdColors>() ??
-                                    OotdColors.light)
-                                .mutedSurface,
+                        color: (OotdColors.of(context)).mutedSurface,
                       ),
                     );
                   },
@@ -533,6 +564,7 @@ class _CapturedTile extends StatelessWidget {
 
 class _AssetTile extends StatefulWidget {
   const _AssetTile({
+    super.key,
     required this.asset,
     required this.selected,
     required this.onTap,
@@ -547,66 +579,85 @@ class _AssetTile extends StatefulWidget {
 }
 
 class _AssetTileState extends State<_AssetTile> {
-  late final Future<Uint8List?> _thumbnailFuture;
+  late Future<Uint8List?> _thumbnailFuture;
 
   @override
   void initState() {
     super.initState();
-    _thumbnailFuture = widget.asset.thumbnailDataWithSize(
-      const ThumbnailSize.square(360),
-      quality: 88,
-    );
+    _loadThumbnail();
   }
+
+  void _loadThumbnail() {
+    _thumbnailFuture = widget.asset
+        .thumbnailDataWithSize(const ThumbnailSize.square(360), quality: 88)
+        .catchError((Object _) => null);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AssetTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset.id != widget.asset.id) _loadThumbnail();
+  }
+
+  Widget _retryThumbnail() => Center(
+    child: AppIconButton(
+      tooltip: '重试缩略图',
+      icon: const Icon(LucideIcons.rotateCw),
+      onPressed: () => setState(_loadThumbnail),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       label: widget.selected ? '已选照片' : '照片',
       button: true,
-      child: Material(
-        color: Colors.black12,
-        child: InkWell(
+      child: AppImageSurface(
+        color: const Color(0x1F000000),
+        child: AppPressable(
           onTap: widget.onTap,
           child: Stack(
             fit: StackFit.expand,
             children: [
               Positioned.fill(
                 child: FutureBuilder<Uint8List?>(
-                future: _thumbnailFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.hasData && snapshot.data != null) {
-                    return Image.memory(
-                      snapshot.data!,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                    );
-                  }
+                  future: _thumbnailFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data != null) {
+                      return Image.memory(
+                        snapshot.data!,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, _, _) => _retryThumbnail(),
+                      );
+                    }
 
-                  final ootd =
-                      Theme.of(context).extension<OotdColors>() ??
-                      OotdColors.light;
+                    if (snapshot.connectionState == ConnectionState.done) {
+                      return _retryThumbnail();
+                    }
+                    final ootd = OotdColors.of(context);
 
-                  return DecoratedBox(
-                    decoration: BoxDecoration(color: ootd.mutedSurface),
-                    child: Center(
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 1.8),
+                    return DecoratedBox(
+                      decoration: BoxDecoration(color: ootd.mutedSurface),
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(),
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: _SelectionIndicator(selected: widget.selected),
-            ),
-          ],
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _SelectionIndicator(selected: widget.selected),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -619,19 +670,19 @@ class _SelectionIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       width: 28,
       height: 28,
       decoration: BoxDecoration(
-        color: selected ? ootd.selectedSurface : Colors.black26,
+        color: selected ? ootd.selectedSurface : const Color(0x42000000),
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2.8),
       ),
       child: selected
-          ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+          ? const Icon(LucideIcons.check, color: Colors.white, size: 16)
           : null,
     );
   }

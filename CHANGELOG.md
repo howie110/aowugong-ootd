@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- 全量迁移应用内组件到 shadcn_flutter 0.0.53，统一 Zinc 配色与 Lucide 图标
+- 本地保存改为可等待的串行原子写入，加入多文件恢复日志及编辑失败保护
+- ZIP 后台流式处理、完整校验、安全暂存与中断恢复
+- 图片按显示尺寸解码、草稿/未引用文件清理、相册权限刷新和失败重试
+- 补齐帮助/版本页面；CI 固定 SDK 与签名，缺失固定签名材料时停止发布
+- Android 构建与真机性能仍待具备 SDK/设备后的验证
+
 ## 1.0.8+9 - 2026-06-20
 
 - 修正 Android Gradle 仓库源优先级，GitHub Actions 在线打包优先使用 `google()` 和 `mavenCentral()`

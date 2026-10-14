@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
-
-import 'app_theme.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 
 class OotdCard extends StatelessWidget {
   const OotdCard({
@@ -16,15 +14,9 @@ class OotdCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
-
-    return Container(
+    return Card(
       padding: padding,
-      decoration: BoxDecoration(
-        color: ootd.cardSurface,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: ootd.cardBorder),
-      ),
+      borderRadius: BorderRadius.circular(borderRadius),
       child: child,
     );
   }

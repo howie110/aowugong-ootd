@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 
 import '../../../../app/app_metadata.dart';
 import '../../../../shared/design/app_theme.dart';
@@ -6,7 +6,7 @@ import '../../../../shared/navigation/smooth_page_route.dart';
 import 'backup_export_page.dart';
 import 'backup_import_page.dart';
 import 'option_management_page.dart';
-import 'settings_placeholder_page.dart';
+import 'settings_information_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -25,13 +25,11 @@ class SettingsPage extends StatelessWidget {
           _SettingsGroup(
             items: [
               _SettingsItemData(
-                icon: Icons.tune_rounded,
+                icon: LucideIcons.slidersHorizontal,
                 title: '选项管理',
                 onTap: () {
                   Navigator.of(context).push(
-                    SmoothPageRoute<void>(
-                      page: const OptionManagementPage(),
-                    ),
+                    SmoothPageRoute<void>(page: const OptionManagementPage()),
                   );
                 },
               ),
@@ -41,25 +39,21 @@ class SettingsPage extends StatelessWidget {
           _SettingsGroup(
             items: [
               _SettingsItemData(
-                icon: Icons.cloud_upload_outlined,
+                icon: LucideIcons.archive,
                 title: '数据备份',
                 onTap: () {
-                  Navigator.of(context).push(
-                    SmoothPageRoute<void>(
-                      page: const BackupExportPage(),
-                    ),
-                  );
+                  Navigator.of(
+                    context,
+                  ).push(SmoothPageRoute<void>(page: const BackupExportPage()));
                 },
               ),
               _SettingsItemData(
-                icon: Icons.download_for_offline_outlined,
+                icon: LucideIcons.folderDown,
                 title: '备份导入',
                 onTap: () {
-                  Navigator.of(context).push(
-                    SmoothPageRoute<void>(
-                      page: const BackupImportPage(),
-                    ),
-                  );
+                  Navigator.of(
+                    context,
+                  ).push(SmoothPageRoute<void>(page: const BackupImportPage()));
                 },
               ),
             ],
@@ -68,15 +62,15 @@ class SettingsPage extends StatelessWidget {
           _SettingsGroup(
             items: [
               _SettingsItemData(
-                icon: Icons.help_outline_rounded,
+                icon: LucideIcons.circleHelp,
                 title: '帮助中心',
-                onTap: () => _openPlaceholder(context, '帮助中心'),
+                onTap: () => _openInformation(context, '帮助中心'),
               ),
               _SettingsItemData(
-                icon: Icons.info_outline_rounded,
+                icon: LucideIcons.info,
                 title: '版本信息',
                 trailingText: appVersionLabel,
-                onTap: () => _openPlaceholder(context, '版本信息'),
+                onTap: () => _openInformation(context, '版本信息'),
               ),
             ],
           ),
@@ -84,9 +78,9 @@ class SettingsPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
-              '帮助中心和版本信息仍为预留页，数据备份和备份导入已接入 zip 流程。',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+              '照片与记录保存在本机，请定期导出 ZIP 备份。',
+              style: theme.typography.small.copyWith(
+                color: colorScheme.mutedForeground,
                 fontSize: 10.5,
               ),
             ),
@@ -96,12 +90,10 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  void _openPlaceholder(BuildContext context, String title) {
-    Navigator.of(context).push(
-      SmoothPageRoute<void>(
-        page: SettingsPlaceholderPage(title: title),
-      ),
-    );
+  void _openInformation(BuildContext context, String title) {
+    Navigator.of(
+      context,
+    ).push(SmoothPageRoute<void>(page: SettingsInformationPage(title: title)));
   }
 }
 
@@ -112,14 +104,9 @@ class _SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: ootd.cardSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ootd.cardBorder),
-      ),
+    return Card(
       child: Column(
         children: [
           for (var index = 0; index < items.length; index++) ...[
@@ -144,12 +131,12 @@ class _SettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final ootd = theme.extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return Semantics(
       label: data.title,
       button: true,
-      child: InkWell(
+      child: AppPressable(
         borderRadius: BorderRadius.circular(12),
         onTap: data.onTap,
         child: Padding(
@@ -161,7 +148,7 @@ class _SettingsRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   data.title,
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  style: theme.typography.large.copyWith(
                     fontWeight: FontWeight.w500,
                     fontSize: 14,
                   ),
@@ -172,7 +159,7 @@ class _SettingsRow extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 6),
                   child: Text(
                     data.trailingText!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: theme.typography.base.copyWith(
                       color: ootd.mutedForeground,
                       fontWeight: FontWeight.w500,
                       fontSize: 12,
@@ -180,7 +167,7 @@ class _SettingsRow extends StatelessWidget {
                   ),
                 ),
               Icon(
-                Icons.chevron_right_rounded,
+                LucideIcons.chevronRight,
                 color: ootd.mutedForeground.withValues(alpha: 0.55),
                 size: 20,
               ),

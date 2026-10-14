@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/design/app_theme.dart';
@@ -34,8 +34,17 @@ class HomePage extends ConsumerWidget {
                 _FilterDimensionRow(
                   options: optionGroups[index].values,
                   selected: filters.valuesOf(optionGroups[index].key),
-                  onOptionTap: (value) {
-                    filterNotifier.toggleOption(optionGroups[index].key, value);
+                  onOptionTap: (value) async {
+                    try {
+                      await filterNotifier.toggleOption(
+                        optionGroups[index].key,
+                        value,
+                      );
+                    } catch (_) {
+                      if (context.mounted) {
+                        showAppMessage(context, '筛选保存失败，请重试');
+                      }
+                    }
                   },
                 ),
                 if (index != optionGroups.length - 1) const SizedBox(height: 8),
@@ -45,8 +54,8 @@ class HomePage extends ConsumerWidget {
                 alignment: Alignment.centerRight,
                 child: Text(
                   '${filteredItems.length} 条',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  style: theme.typography.small.copyWith(
+                    color: theme.colorScheme.mutedForeground,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -60,9 +69,8 @@ class HomePage extends ConsumerWidget {
               ? const SliverToBoxAdapter(child: _EmptyState())
               : SliverGrid(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => _GridEntryCard(
-                      item: filteredItems[index],
-                    ),
+                    (context, index) =>
+                        _GridEntryCard(item: filteredItems[index]),
                     childCount: filteredItems.length,
                   ),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -107,25 +115,23 @@ class _GridEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
-    return Material(
+    return AppImageSurface(
       color: ootd.cardSurface,
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: Semantics(
         label: '穿搭 ${item.dateLabel}',
         button: true,
-        child: InkWell(
+        child: AppPressable(
           key: Key('ootd-card-${item.id}'),
           onTap: () {
             Navigator.of(context).push(
-              SmoothPageRoute<void>(
-                page: OotdDetailPage(itemId: item.id),
-              ),
+              SmoothPageRoute<void>(page: OotdDetailPage(itemId: item.id)),
             );
           },
-          child: Ink(
+          child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: ootd.cardBorder),
@@ -155,7 +161,7 @@ class _GridDateStamp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return Text(
       label,
@@ -178,23 +184,17 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final ootd = theme.extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return OotdCard(
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          Icon(
-            Icons.search_off_rounded,
-            size: 28,
-            color: ootd.subtleIcon,
-          ),
+          Icon(LucideIcons.searchX, size: 28, color: ootd.subtleIcon),
           const SizedBox(height: 12),
           Text(
             '当前筛选条件下没有匹配的穿搭',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: theme.typography.base.copyWith(fontWeight: FontWeight.w600),
           ),
         ],
       ),

@@ -2,7 +2,7 @@
 
 Status: active
 Type: operations-release
-Last Updated: 2026-06-20
+Last Updated: 2026-09-29
 Source of Truth: yes
 Related: [发版说明](release.md), [测试清单](test-checklist.md)
 
@@ -21,33 +21,15 @@ Related: [发版说明](release.md), [测试清单](test-checklist.md)
 
 - 本机不必长期保存完整打包环境
 - 构建步骤可重复，减少“我电脑能打、别人不能打”的问题
-- 签名文件不提交到仓库，由 GitHub Actions 构建时临时生成
+- 签名文件不提交到仓库，GitHub Actions 从 Secrets 还原固定私钥
 - Release 资产和源码版本天然绑定到 tag
 
 ## Android Signing
 
-当前项目为了简化个人发布流程，GitHub Actions 会在每次 release 构建时临时生成 `release.jks`。keystore 的密码和 alias 统一固定为：
+CI 使用固定 keystore，缺失 Secrets 会直接失败。配置 ANDROID_KEYSTORE_BASE64、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS、ANDROID_KEY_PASSWORD。
 
-```text
-aowugong
-```
-
-注意：这种方式最省事，但每次构建生成的签名可能不同。如果用户已经安装旧 APK，新 APK 可能无法直接覆盖安装，需要先卸载旧版本。
-
-如果以后想支持稳定覆盖升级，需要改回固定 keystore。固定 keystore 可以在安装 JDK 的电脑上手动生成：
-
-```powershell
-New-Item -ItemType Directory -Force android\keystore | Out-Null
-keytool -genkey -v -keystore android\keystore\release.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias aowugong -storepass aowugong -keypass aowugong
-```
-
-生成后补齐 `android/key.properties`，再本地测试一次 release build。
-
-重要规则：
-
-- 一旦公开发版并希望用户长期覆盖升级，就不要随意换 keystore
-- 丢失 keystore 会影响后续覆盖安装升级
-- `android/key.properties` 和 `android/keystore/` 绝不能提交到 git
+优先找回已发布 APK 对应的原始私钥，并核对证书 SHA-256；重新生成私钥不能延续旧版覆盖升级链。
+不要提交私钥或密码。当前任务没有创建密钥或修改线上 Secrets。
 
 ## Release Flow
 
@@ -106,3 +88,12 @@ build/app/outputs/flutter-apk/app-release.apk
 ```
 
 本机必须提前准备 Flutter SDK、JDK、Android SDK、`android/key.properties` 和 `android/keystore/release.jks`。
+
+
+## 2026-09-29 签名与 SDK 更新
+
+CI 固定 Flutter 3.41.6，先执行 analyze 与 test。移除每次构建临时生成 keystore 的流程。
+发布必须配置固定 Secrets：ANDROID_KEYSTORE_BASE64、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS、ANDROID_KEY_PASSWORD。
+必须使用旧版 APK 对应的原始私钥；仅有密码、别名或证书不能恢复私钥。缺失配置会中止构建。
+本次本地工作区未找到 APK、JKS 或 keystore，未创建或上传任何签名材料，也未触发发布。
+尚不能保证对已安装旧版的覆盖升级；发版前需找回旧私钥并核对证书 SHA-256。

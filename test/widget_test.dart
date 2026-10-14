@@ -1,16 +1,32 @@
+import 'package:aowugong_ootd/features/ootd/presentation/home/providers/ootd_mutation_queue.dart';
+import 'dart:io';
+import 'package:aowugong_ootd/features/ootd/data/local_ootd_store.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
+import 'package:aowugong_ootd/shared/design/app_theme.dart';
 import 'package:aowugong_ootd/app/app.dart';
 import 'package:aowugong_ootd/features/ootd/presentation/detail/ootd_detail_page.dart';
 import 'package:aowugong_ootd/features/ootd/presentation/home/home_page.dart';
 import 'package:aowugong_ootd/features/ootd/presentation/home/mock_ootd_items.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  late Directory root;
+  late OotdLocalStore store;
+  setUp(() async {
+    root = await Directory.systemTemp.createTemp('ootd-widget-');
+    store = OotdLocalStore(dataDirectoryOverride: root.path);
+  });
+  tearDown(() async => root.delete(recursive: true));
   testWidgets('home supports multi-select filters and grid date captions', (
     tester,
   ) async {
-    await tester.pumpWidget(const ProviderScope(child: DailyOotdApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [ootdLocalStoreProvider.overrideWithValue(store)],
+        child: const DailyOotdApp(),
+      ),
+    );
 
     expect(find.text('穿搭'), findsWidgets);
     expect(find.text('喜欢'), findsOneWidget);
@@ -26,9 +42,15 @@ void main() {
       tester.element(find.byType(HomePage)),
     );
 
-    await tester.tap(find.text('喜欢'));
+    await tester.runAsync(() async {
+      await tester.tap(find.text('喜欢'));
+      await container.read(ootdMutationQueueProvider).run(() async {});
+    });
     await tester.pumpAndSettle();
-    await tester.tap(find.text('春'));
+    await tester.runAsync(() async {
+      await tester.tap(find.text('春'));
+      await container.read(ootdMutationQueueProvider).run(() async {});
+    });
     await tester.pumpAndSettle();
 
     expect(container.read(ootdFiltersProvider).preferences, ['喜欢']);
@@ -42,11 +64,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ootdLocalStoreProvider.overrideWithValue(store),
           initialOotdFiltersProvider.overrideWithValue(
             const OotdFilterState(scenes: ['休息']),
           ),
         ],
-        child: const MaterialApp(home: Scaffold(body: HomePage())),
+        child: ShadcnApp(
+          theme: AppTheme.light(),
+          home: const AppScaffold(body: HomePage()),
+        ),
       ),
     );
 
@@ -57,8 +83,12 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: OotdDetailPage(itemId: 'look-01')),
+      ProviderScope(
+        overrides: [ootdLocalStoreProvider.overrideWithValue(store)],
+        child: ShadcnApp(
+          theme: AppTheme.light(),
+          home: const OotdDetailPage(itemId: 'look-01'),
+        ),
       ),
     );
 
@@ -68,16 +98,23 @@ void main() {
     expect(find.text('主'), findsOneWidget);
     expect(find.text('喜欢'), findsOneWidget);
     expect(find.text('副图1'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('1星'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('1星'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, 600));
+    await tester.pumpAndSettle();
 
-    final saveButton = tester.widget<FilledButton>(
+    final saveButton = tester.widget<PrimaryButton>(
       find.byKey(const Key('ootd-save-button')),
     );
     expect(saveButton.onPressed, isNull);
 
     await tester.tap(find.byKey(const Key('ootd-image-slot-0')));
     await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.byKey(const Key('ootd-preview-close')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('ootd-preview-close')));
     await tester.pumpAndSettle();
@@ -85,14 +122,19 @@ void main() {
     await tester.tap(find.text('冬'));
     await tester.pumpAndSettle();
 
-    final updatedSaveButton = tester.widget<FilledButton>(
+    final updatedSaveButton = tester.widget<PrimaryButton>(
       find.byKey(const Key('ootd-save-button')),
     );
     expect(updatedSaveButton.onPressed, isNotNull);
   });
 
   testWidgets('settings page opens option management', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: DailyOotdApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [ootdLocalStoreProvider.overrideWithValue(store)],
+        child: const DailyOotdApp(),
+      ),
+    );
 
     await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
@@ -105,14 +147,21 @@ void main() {
     expect(find.text('选项管理'), findsOneWidget);
     expect(find.text('选项1'), findsNothing);
     expect(find.text('喜欢'), findsOneWidget);
-    expect(find.byTooltip('删除整个选项'), findsWidgets);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is AppIconButton && w.tooltip == '删除整个选项',
+      ),
+      findsWidgets,
+    );
   });
 
-  test('option management can add custom option group', () {
-    final container = ProviderContainer();
+  test('option management can add custom option group', () async {
+    final container = ProviderContainer(
+      overrides: [ootdLocalStoreProvider.overrideWithValue(store)],
+    );
     addTearDown(container.dispose);
 
-    final result = container
+    final result = await container
         .read(ootdOptionConfigProvider.notifier)
         .addExtraGroup('自定义');
     final config = container.read(ootdOptionConfigProvider);
@@ -123,13 +172,15 @@ void main() {
     expect(config.extraGroups.single.values, ['自定义']);
   });
 
-  test('ootd item notifier can delete an item', () {
-    final container = ProviderContainer();
+  test('ootd item notifier can delete an item', () async {
+    final container = ProviderContainer(
+      overrides: [ootdLocalStoreProvider.overrideWithValue(store)],
+    );
     addTearDown(container.dispose);
 
     expect(container.read(ootdItemsProvider).length, 9);
 
-    container.read(ootdItemsProvider.notifier).deleteItem('look-01');
+    await container.read(ootdItemsProvider.notifier).deleteItem('look-01');
 
     expect(container.read(ootdItemsProvider).length, 8);
     expect(
@@ -146,9 +197,6 @@ void main() {
     expect(draft.primaryImage.sourceType, OotdImageSourceType.solidColor);
     expect(draft.preference, defaultOotdOptionConfig.preferences.first);
     expect(draft.season, defaultOotdOptionConfig.seasons.first);
-    expect(
-      draft.dateLabel,
-      matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')),
-    );
+    expect(draft.dateLabel, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
   });
 }

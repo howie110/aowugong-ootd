@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../shared/navigation/smooth_page_route.dart';
 import '../../../../shared/design/app_theme.dart';
@@ -25,6 +24,9 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
   late MockOotdItem _draftItem;
   bool _itemMissing = false;
   bool _isPickingImage = false;
+  bool _saving = false;
+  bool _allowPop = false;
+  bool _confirmingBack = false;
 
   @override
   void initState() {
@@ -37,8 +39,8 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
   @override
   Widget build(BuildContext context) {
     if (_itemMissing) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('穿搭详情')),
+      return AppScaffold(
+        appBar: AppPageBar(title: const Text('穿搭详情')),
         body: const Center(child: Text('没有找到这条穿搭')),
       );
     }
@@ -46,65 +48,78 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
     final options = ref.watch(ootdOptionConfigProvider);
     final optionGroups = options.allGroups;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_draftItem.dateLabel),
-        actions: [
-          if (!widget.isCreateMode)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: IconButton(
-                tooltip: '删除穿搭',
-                onPressed: _confirmDeleteItem,
-                icon: const Icon(Icons.delete_outline_rounded),
+    return PopScope(
+      canPop:
+          _allowPop ||
+          (!_saving &&
+              !_isPickingImage &&
+              _draftItem.sameContentAs(_initialItem)),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _confirmBack();
+      },
+      child: AppScaffold(
+        appBar: AppPageBar(
+          title: Text(_draftItem.dateLabel),
+          actions: [
+            if (!widget.isCreateMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: AppIconButton(
+                  tooltip: '删除穿搭',
+                  onPressed: _saving || _isPickingImage
+                      ? null
+                      : _confirmDeleteItem,
+                  icon: const Icon(LucideIcons.trash2),
+                ),
               ),
-            ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          _ImagesPanel(
-            images: _draftItem.images,
-            busy: _isPickingImage,
-            onPreview: _showImagePreview,
-            onReplacePrimary: () => _replaceImage(0),
-            onReplaceSecondary: _replaceImage,
-            onAddSecondary: _addSecondaryImage,
-            onRemoveSecondary: _removeSecondaryImage,
-          ),
-          const SizedBox(height: 14),
-          for (var index = 0; index < optionGroups.length; index++) ...[
-            CompactOptionGroup<String>(
-              options: optionGroups[index].values,
-              isSelected: (value) =>
-                  _draftItem.valueOf(
-                    optionGroups[index].key,
-                    fallback: optionGroups[index].values.first,
-                  ) ==
-                  value,
-              labelBuilder: (value) => value,
-              onTap: (value) {
-                setState(() {
-                  _draftItem = _draftItem.copyWithValue(
-                    optionGroups[index].key,
-                    value,
-                  );
-                });
-              },
-            ),
-            if (index != optionGroups.length - 1) const SizedBox(height: 8),
           ],
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            key: const Key('ootd-save-button'),
-            onPressed: _canSave ? _save : null,
-            child: Text(widget.isCreateMode ? '新增穿搭' : '保存修改'),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            _ImagesPanel(
+              images: _draftItem.images,
+              busy: _isPickingImage || _saving,
+              onPreview: _showImagePreview,
+              onReplacePrimary: () => _replaceImage(0),
+              onReplaceSecondary: _replaceImage,
+              onAddSecondary: _addSecondaryImage,
+              onRemoveSecondary: _removeSecondaryImage,
+            ),
+            const SizedBox(height: 14),
+            for (var index = 0; index < optionGroups.length; index++) ...[
+              CompactOptionGroup<String>(
+                options: optionGroups[index].values,
+                isSelected: (value) =>
+                    _draftItem.valueOf(
+                      optionGroups[index].key,
+                      fallback: optionGroups[index].values.first,
+                    ) ==
+                    value,
+                labelBuilder: (value) => value,
+                onTap: (value) {
+                  if (_saving) return;
+                  setState(() {
+                    _draftItem = _draftItem.copyWithValue(
+                      optionGroups[index].key,
+                      value,
+                    );
+                  });
+                },
+              ),
+              if (index != optionGroups.length - 1) const SizedBox(height: 8),
+            ],
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: PrimaryButton(
+              key: const Key('ootd-save-button'),
+              onPressed: _canSave ? _save : null,
+              child: Text(widget.isCreateMode ? '新增穿搭' : '保存修改'),
+            ),
           ),
         ),
       ),
@@ -117,10 +132,10 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
         _draftItem.primaryImage.sourceType != OotdImageSourceType.solidColor;
 
     if (widget.isCreateMode) {
-      return !_isPickingImage && hasChanges && hasPrimaryImage;
+      return !_saving && !_isPickingImage && hasChanges && hasPrimaryImage;
     }
 
-    return !_isPickingImage && hasChanges;
+    return !_saving && !_isPickingImage && hasChanges;
   }
 
   MockOotdItem _loadSourceItem() {
@@ -192,11 +207,9 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
     setState(() => _isPickingImage = true);
 
     try {
-      final selectedPath = await Navigator.of(context).push<String>(
-        SmoothPageRoute<String>(
-          page: const PhotoSelectionPage(),
-        ),
-      );
+      final selectedPath = await Navigator.of(
+        context,
+      ).push<String>(SmoothPageRoute<String>(page: const PhotoSelectionPage()));
       if (selectedPath == null) {
         return null;
       }
@@ -211,9 +224,7 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('选图失败，请重试')));
+        showAppMessage(context, '选图失败，请重试');
       }
       return null;
     } finally {
@@ -224,12 +235,13 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
   }
 
   Future<void> _showImagePreview(MockOotdImage image) async {
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
-      barrierColor: Colors.black87,
+      barrierColor: const Color(0xDD000000),
+      fullScreen: true,
       builder: (dialogContext) {
-        return Dialog.fullscreen(
-          backgroundColor: Colors.black,
+        return ColoredBox(
+          color: Colors.black,
           child: SafeArea(
             child: Stack(
               children: [
@@ -239,17 +251,21 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
                     maxScale: 4,
                     child: AspectRatio(
                       aspectRatio: 0.72,
-                      child: OotdImageView(image: image, fit: BoxFit.contain),
+                      child: OotdImageView(
+                        image: image,
+                        fit: BoxFit.contain,
+                        fullResolution: true,
+                      ),
                     ),
                   ),
                 ),
                 Positioned(
                   top: 8,
                   right: 8,
-                  child: IconButton.filled(
+                  child: AppIconButton(
                     key: const Key('ootd-preview-close'),
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(LucideIcons.x),
                   ),
                 ),
               ],
@@ -260,60 +276,137 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
     );
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (!_canSave) return;
     final notifier = ref.read(ootdItemsProvider.notifier);
     final duplicateDate = notifier.hasItemOnDate(
       _draftItem.dateLabel,
       excludingId: widget.itemId,
     );
     if (duplicateDate) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('这一天已经有穿搭，不能重复保存')));
+      showAppMessage(context, '这一天已经有穿搭，不能重复保存');
       return;
     }
 
-    if (widget.isCreateMode) {
-      notifier.addItem(
-        images: _draftItem.images,
-        dateLabel: _draftItem.dateLabel,
-        preference: _draftItem.preference,
-        season: _draftItem.season,
-        scene: _draftItem.scene,
-        tone: _draftItem.tone,
-        rating: _draftItem.rating,
-        extraSelections: _draftItem.extraSelections,
-      );
-    } else {
-      notifier.updateItem(
-        id: widget.itemId!,
-        images: _draftItem.images,
-        dateLabel: _draftItem.dateLabel,
-        preference: _draftItem.preference,
-        season: _draftItem.season,
-        scene: _draftItem.scene,
-        tone: _draftItem.tone,
-        rating: _draftItem.rating,
-        extraSelections: _draftItem.extraSelections,
-      );
-    }
+    setState(() => _saving = true);
+    try {
+      final store = ref.read(ootdLocalStoreProvider);
+      final images = <MockOotdImage>[];
+      for (final image in _draftItem.images) {
+        images.add(
+          image.sourceType == OotdImageSourceType.file && image.path != null
+              ? MockOotdImage.file(
+                  id: image.id,
+                  filePath: await store.promoteDraftImage(image.path!),
+                )
+              : image,
+        );
+      }
+      if (widget.isCreateMode) {
+        await notifier.addItem(
+          images: images,
+          dateLabel: _draftItem.dateLabel,
+          preference: _draftItem.preference,
+          season: _draftItem.season,
+          scene: _draftItem.scene,
+          tone: _draftItem.tone,
+          rating: _draftItem.rating,
+          extraSelections: _draftItem.extraSelections,
+        );
+      } else {
+        await notifier.updateItem(
+          id: widget.itemId!,
+          images: images,
+          dateLabel: _draftItem.dateLabel,
+          preference: _draftItem.preference,
+          season: _draftItem.season,
+          scene: _draftItem.scene,
+          tone: _draftItem.tone,
+          rating: _draftItem.rating,
+          extraSelections: _draftItem.extraSelections,
+        );
+      }
 
-    Navigator.of(context).pop();
+      if (!mounted) return;
+      _initialItem = _draftItem;
+      await _cleanupImages();
+      _leave();
+    } catch (_) {
+      if (mounted) showAppMessage(context, '保存失败，修改仍保留，请重试');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _cleanupImages() async {
+    final store = ref.read(ootdLocalStoreProvider);
+    final paths = ref
+        .read(ootdItemsProvider)
+        .expand((item) => item.images)
+        .map((image) => image.path)
+        .whereType<String>()
+        .toSet();
+    try {
+      await store.removeUnreferencedImages(paths, protectedDraftPaths: {});
+    } catch (_) {
+      // Cleanup is best effort; never turn a successful commit into a failed save.
+    }
+  }
+
+  void _leave() {
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  Future<void> _confirmBack() async {
+    if (_saving || _isPickingImage || _confirmingBack) return;
+    _confirmingBack = true;
+    final choice = await showAppDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('有未保存的修改'),
+        content: const Text('保存后离开，或放弃这次修改。'),
+        actions: [
+          GhostButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('继续编辑'),
+          ),
+          OutlineButton(
+            onPressed: () => Navigator.pop(context, 'discard'),
+            child: const Text('放弃修改'),
+          ),
+          PrimaryButton(
+            onPressed: _canSave ? () => Navigator.pop(context, 'save') : null,
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    _confirmingBack = false;
+    if (!mounted) return;
+    if (choice == 'save') await _save();
+    if (choice == 'discard') {
+      await _cleanupImages();
+      _leave();
+    }
   }
 
   Future<void> _confirmDeleteItem() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('删除穿搭'),
           content: const Text('删除后不能恢复。是否确认删除这条穿搭？'),
           actions: [
-            TextButton(
+            GhostButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('取消'),
             ),
-            FilledButton(
+            PrimaryButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('删除'),
             ),
@@ -326,8 +419,17 @@ class _OotdDetailPageState extends ConsumerState<OotdDetailPage> {
       return;
     }
 
-    ref.read(ootdItemsProvider.notifier).deleteItem(widget.itemId!);
-    Navigator.of(context).pop();
+    setState(() => _saving = true);
+    try {
+      await ref.read(ootdItemsProvider.notifier).deleteItem(widget.itemId!);
+      if (!mounted) return;
+      await _cleanupImages();
+      _leave();
+    } catch (_) {
+      if (mounted) showAppMessage(context, '删除失败，请重试');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
 
@@ -352,14 +454,7 @@ class _ImagesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: ootd.cardSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ootd.cardBorder),
-      ),
+    return Card(
       padding: const EdgeInsets.all(8),
       child: Row(
         children: [
@@ -412,17 +507,21 @@ class _ImageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasImage = image != null;
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return AspectRatio(
-      aspectRatio: 0.74,
-      child: Material(
+      aspectRatio: 0.60,
+      child: AppImageSurface(
         color: ootd.mutedSurface,
         borderRadius: BorderRadius.circular(10),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: busy ? null : hasImage ? onPreview : onChange,
-          child: Ink(
+        child: AppPressable(
+          onTap: busy
+              ? null
+              : hasImage
+              ? onPreview
+              : onChange,
+          child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: ootd.cardBorder),
@@ -439,38 +538,22 @@ class _ImageTile extends StatelessWidget {
                 Positioned(
                   right: 4,
                   bottom: 6,
-                  child: IconButton.filledTonal(
+                  child: AppIconButton(
                     onPressed: busy ? null : onChange,
                     icon: Icon(
-                      hasImage ? Icons.sync_alt_rounded : Icons.add_rounded,
+                      hasImage ? LucideIcons.replace : LucideIcons.plus,
                     ),
                     tooltip: hasImage ? '替换图片' : '添加图片',
-                    iconSize: 14,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 24,
-                      height: 24,
-                    ),
-                    padding: EdgeInsets.zero,
                   ),
                 ),
                 if (onRemove != null)
                   Positioned(
                     right: 4,
                     top: 4,
-                    child: IconButton.filled(
-                      style: IconButton.styleFrom(
-                        backgroundColor: ootd.destructive,
-                        foregroundColor: ootd.selectedForeground,
-                      ),
+                    child: AppIconButton(
                       onPressed: busy ? null : onRemove,
-                      icon: const Icon(Icons.close_rounded),
+                      icon: const Icon(LucideIcons.x),
                       tooltip: '删除副图',
-                      iconSize: 14,
-                      constraints: const BoxConstraints.tightFor(
-                        width: 24,
-                        height: 24,
-                      ),
-                      padding: EdgeInsets.zero,
                     ),
                   ),
               ],
@@ -487,18 +570,12 @@ class _EmptyImageSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
+    final ootd = OotdColors.of(context);
 
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: ootd.mutedSurface,
-      ),
+      decoration: BoxDecoration(color: ootd.mutedSurface),
       child: Center(
-        child: Icon(
-          Icons.add_photo_alternate_outlined,
-          color: ootd.subtleIcon,
-          size: 18,
-        ),
+        child: Icon(LucideIcons.imagePlus, color: ootd.subtleIcon, size: 18),
       ),
     );
   }

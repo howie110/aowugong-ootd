@@ -2,7 +2,7 @@
 
 Status: active
 Type: operations-release
-Last Updated: 2026-06-20
+Last Updated: 2026-09-29
 Source of Truth: yes
 Related: [ADR-004](../04-decisions/ADR-004-android-package-and-signing.md), [测试清单](test-checklist.md)
 
@@ -63,22 +63,9 @@ flutter build apk --release --no-tree-shake-icons
 
 ## Signing Strategy
 
-当前 GitHub Actions release workflow 会在构建时临时生成 `release.jks`，alias 和密码都固定为：
-
-```text
-aowugong
-```
-
-这适合个人项目先公开分享 APK，不需要在 GitHub Secrets 里手动填 keystore。
-
-## Important Rule
-
-如果以后希望让外部用户长期覆盖升级：
-
-- 不要修改 Android 包名
-- 改用一份固定保存的 release keystore
-- 不要重新生成不同签名去覆盖同一条升级链
-- `android/key.properties` 和 `android/keystore/` 仍然不能提交到 git
+使用固定 release keystore，通过 GitHub Secrets 注入。不得在每次构建时生成新密钥。
+包名保持 com.aowugong.ootd；私钥及 android/key.properties 不提交到仓库。
+配置与旧签名恢复要求见本文末尾。
 
 ## Debug vs Release
 
@@ -117,3 +104,12 @@ aowugong
 - 安装包路径正确
 - 覆盖安装验证通过
 - 备份导出和导入验证通过
+
+
+## 2026-09-29 签名与 SDK 更新
+
+CI 固定 Flutter 3.41.6，先执行 analyze 与 test。移除每次构建临时生成 keystore 的流程。
+发布必须配置固定 Secrets：ANDROID_KEYSTORE_BASE64、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS、ANDROID_KEY_PASSWORD。
+必须使用旧版 APK 对应的原始私钥；仅有密码、别名或证书不能恢复私钥。缺失配置会中止构建。
+本次本地工作区未找到 APK、JKS 或 keystore，未创建或上传任何签名材料，也未触发发布。
+尚不能保证对已安装旧版的覆盖升级；发版前需找回旧私钥并核对证书 SHA-256。

@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
-
-import '../../../../shared/design/app_theme.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 
 class CompactOptionGroup<T> extends StatelessWidget {
   const CompactOptionGroup({
@@ -49,36 +47,18 @@ class CompactOptionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ootd = Theme.of(context).extension<OotdColors>() ?? OotdColors.light;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? ootd.selectedSurface : ootd.cardSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? ootd.selectedSurface : ootd.cardBorder,
-          ),
-        ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: SelectedButton(
+        value: selected,
+        onChanged: (_) => onTap(),
+        style: const ButtonStyle.outline(),
+        selectedStyle: const ButtonStyle.primary(),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (leading != null) ...[leading!, const SizedBox(width: 4)],
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? ootd.selectedForeground : ootd.foreground,
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                height: 1,
-                letterSpacing: 0,
-              ),
-            ),
+            Text(label),
           ],
         ),
       ),

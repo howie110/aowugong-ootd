@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:aowugong_ootd/shared/design/app_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/ootd/presentation/detail/ootd_detail_page.dart';
 import '../features/ootd/presentation/home/home_page.dart';
 import '../features/ootd/presentation/home/mock_ootd_items.dart';
 import '../features/settings/presentation/settings/settings_page.dart';
-import '../shared/design/app_theme.dart';
 import '../shared/navigation/smooth_page_route.dart';
 import 'providers.dart';
 
@@ -16,40 +15,32 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentTab = ref.watch(rootTabProvider);
 
-    return Scaffold(
-      appBar: AppBar(
+    return AppScaffold(
+      appBar: AppPageBar(
         title: Text(_titleFor(currentTab)),
         actions: [_buildAppBarAction(context, ref, currentTab)],
       ),
       body: SafeArea(
         child: ColoredBox(
-          color: Theme.of(context).scaffoldBackgroundColor,
+          color: Theme.of(context).colorScheme.background,
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 280),
             switchInCurve: Curves.easeOutCubic,
             switchOutCurve: Curves.linear,
             layoutBuilder: (currentChild, previousChildren) {
-              final children = <Widget>[
-                ...previousChildren,
-              ];
+              final children = <Widget>[...previousChildren];
               if (currentChild != null) {
                 children.add(currentChild);
               }
 
-              return Stack(
-                fit: StackFit.expand,
-                children: children,
-              );
+              return Stack(fit: StackFit.expand, children: children);
             },
             transitionBuilder: (child, animation) {
               final isIncoming = child.key == ValueKey(currentTab);
               if (!isIncoming) {
                 return FadeTransition(
                   opacity: Tween<double>(begin: 1.0, end: 0.0).animate(
-                    CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeIn,
-                    ),
+                    CurvedAnimation(parent: animation, curve: Curves.easeIn),
                   ),
                   child: child,
                 );
@@ -78,33 +69,24 @@ class AppShell extends ConsumerWidget {
           ),
         ),
       ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(
-            top: BorderSide(
-              color:
-                  (Theme.of(context).extension<OotdColors>() ??
-                          OotdColors.light)
-                      .cardBorder,
-            ),
-          ),
-        ),
+      bottomNavigationBar: SafeArea(
+        top: false,
         child: NavigationBar(
-          selectedIndex: currentTab.index,
-          onDestinationSelected: (index) {
-            ref.read(rootTabProvider.notifier).setTab(RootTab.values[index]);
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.grid_view_rounded),
-              selectedIcon: Icon(Icons.grid_view),
-              label: '穿搭',
+          alignment: NavigationBarAlignment.spaceEvenly,
+          children: [
+            NavigationItem(
+              selected: currentTab == RootTab.home,
+              onChanged: (_) =>
+                  ref.read(rootTabProvider.notifier).setTab(RootTab.home),
+              label: const Text('穿搭'),
+              child: const Icon(LucideIcons.layoutGrid),
             ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: '设置',
+            NavigationItem(
+              selected: currentTab == RootTab.settings,
+              onChanged: (_) =>
+                  ref.read(rootTabProvider.notifier).setTab(RootTab.settings),
+              label: const Text('设置'),
+              child: const Icon(LucideIcons.settings),
             ),
           ],
         ),
@@ -130,28 +112,23 @@ class AppShell extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.only(right: 14),
-      child: IconButton.outlined(
+      child: AppIconButton(
         onPressed: () {
           final today = formatDateLabel(DateTime.now());
-          final hasToday = ref.read(ootdItemsProvider.notifier).hasItemOnDate(today);
+          final hasToday = ref
+              .read(ootdItemsProvider.notifier)
+              .hasItemOnDate(today);
           if (hasToday) {
-            final messenger = ScaffoldMessenger.maybeOf(context);
-            messenger
-              ?..hideCurrentSnackBar()
-              ..showSnackBar(
-                const SnackBar(content: Text('今天已经有穿搭，不能重复新增')),
-              );
+            showAppMessage(context, '今天已经有穿搭，不能重复新增');
             return;
           }
 
-          Navigator.of(context).push(
-            SmoothPageRoute<void>(
-              page: const OotdDetailPage(),
-            ),
-          );
+          Navigator.of(
+            context,
+          ).push(SmoothPageRoute<void>(page: const OotdDetailPage()));
         },
         tooltip: '新增穿搭',
-        icon: const Icon(Icons.add_rounded),
+        icon: const Icon(LucideIcons.plus),
       ),
     );
   }

@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:isolate';
+import 'dart:io' as io;
 
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../app/app_metadata.dart';
@@ -111,11 +113,16 @@ class _ParsedBackup {
   final List<MockOotdItem> items;
   final OotdFilterState filters;
   final OotdOptionConfig options;
-  final Map<String, Uint8List> imageContents;
+  final Map<String, String> imageContents;
 }
 
 class OotdBackupService {
-  const OotdBackupService({this.store = const OotdLocalStore()});
+  const OotdBackupService({
+    this.store = const OotdLocalStore(),
+    this.importCheckpoint,
+  });
+
+  final void Function(String phase)? importCheckpoint;
 
   final OotdLocalStore store;
 
@@ -132,43 +139,75 @@ class OotdBackupService {
       options: options,
     );
     final exportedAt = DateTime.now().toIso8601String();
-    final fileName = '${filePrefix}_${_timestampLabel(DateTime.now())}.zip';
+    final fileName =
+        '${filePrefix}_${_timestampLabel(DateTime.now())}_${DateTime.now().microsecondsSinceEpoch}.zip';
     final directory = await _backupDirectory(backupKind);
     await directory.create(recursive: true);
-    await _clearExistingZipFiles(directory);
     final zipPath = p.join(directory.path, fileName);
 
     final manifest = {
       'backupFormatVersion': ootdBackupFormatVersion,
       'appVersion': appFullVersion,
       'exportedAt': exportedAt,
-      'items': prepared.items.map((item) => item.toJson()).toList(growable: false),
+      'items': prepared.items
+          .map((item) => item.toJson())
+          .toList(growable: false),
       'filters': prepared.filters.toJson(),
       'options': prepared.options.toJson(),
       'images': prepared.imageFiles.keys.toList(growable: false),
     };
     final manifestBytes = utf8.encode(jsonEncode(manifest));
 
-    final archive = Archive()
-      ..addFile(
-        ArchiveFile(
-          'manifest.json',
-          manifestBytes.length,
-          manifestBytes,
-        ),
-      );
-
-    for (final entry in prepared.imageFiles.entries) {
-      final bytes = await entry.value.readAsBytes();
-      archive.addFile(ArchiveFile(entry.key, bytes.length, bytes));
+    final files = prepared.imageFiles.map(
+      (key, file) => MapEntry(key, file.path),
+    );
+    try {
+      await Isolate.run(() async {
+        final temporary = '$zipPath.tmp';
+        final encoder = ZipFileEncoder()..create(temporary);
+        try {
+          if (manifestBytes.length > _maxManifestSize) {
+            throw const OotdBackupException('记录数据过大');
+          }
+          encoder.addArchiveFile(
+            ArchiveFile('manifest.json', manifestBytes.length, manifestBytes),
+          );
+          var total = manifestBytes.length;
+          if (files.length + 1 > _maxEntries) {
+            throw const OotdBackupException('图片数量过多');
+          }
+          for (final entry in files.entries) {
+            final file = File(entry.value);
+            final size = await file.length();
+            total += size;
+            if (size > _maxImageSize || total > _maxExpandedSize) {
+              throw const OotdBackupException('备份图片过大');
+            }
+            await encoder.addFile(file, entry.key, ZipFileEncoder.STORE);
+          }
+        } finally {
+          await encoder.close();
+        }
+        if (await File(temporary).length() > _maxZipSize) {
+          throw const OotdBackupException('备份文件超过 500MB');
+        }
+        await File(temporary).rename(zipPath);
+      });
+      // Only discard older backups once the new archive has been read and verified.
+      await _parseBackup(zipPath, includeImageContents: false);
+    } catch (_) {
+      // Never remove an older successful backup when this attempt fails.
+      for (final path in ['$zipPath.tmp', zipPath]) {
+        try {
+          final partial = File(path);
+          if (await partial.exists()) await partial.delete();
+        } on FileSystemException {
+          // Retain the original failure if the filesystem also rejects cleanup.
+        }
+      }
+      rethrow;
     }
-
-    final encoded = ZipEncoder().encode(archive);
-    if (encoded == null) {
-      throw const OotdBackupException('生成 zip 备份文件失败');
-    }
-
-    await File(zipPath).writeAsBytes(encoded, flush: true);
+    await _clearExistingZipFiles(directory, except: zipPath);
     return OotdBackupPreview(
       zipPath: zipPath,
       fileName: fileName,
@@ -206,38 +245,25 @@ class OotdBackupService {
     required OotdFilterState currentFilters,
     required OotdOptionConfig currentOptions,
   }) async {
-    final rollbackBackup = await exportBackup(
-      items: currentItems,
-      filters: currentFilters,
-      options: currentOptions,
-      filePrefix: 'rollback_backup',
-      backupKind: OotdBackupKind.rollback,
-    );
+    await store.flushPendingWrites();
+    importCheckpoint?.call('before-images');
+    final parsed = await _parseBackup(zipPath, includeImageContents: true);
+    importCheckpoint?.call('after-images');
+    final snapshot = await _applyParsedBackup(parsed);
+    importCheckpoint?.call('after-snapshot');
+    return snapshot;
+  }
 
-    try {
-      final parsed = await _parseBackup(zipPath, includeImageContents: true);
-      return await _applyParsedBackup(parsed);
-    } catch (error) {
-      var rollbackFailed = false;
-      try {
-        final rollbackParsed = await _parseBackup(
-          rollbackBackup.zipPath,
-          includeImageContents: true,
-        );
-        await _applyParsedBackup(rollbackParsed);
-      } catch (_) {
-        rollbackFailed = true;
-      }
-
-      if (error is OotdBackupException) {
-        if (rollbackFailed) {
-          throw OotdBackupException('${error.message}（自动回滚也失败了，数据可能不完整）');
-        }
-        rethrow;
-      }
-      final suffix = rollbackFailed ? '（自动回滚也失败了，数据可能不完整）' : '';
-      throw OotdBackupException('导入失败，请重试$suffix');
-    }
+  Future<void> recoverInterruptedImport() async {
+    // Reading first resolves an unfinished JSON transaction. Old image generations
+    // were never overwritten, so either complete snapshot remains usable.
+    final items = await store.loadItemsJson();
+    final paths = items == null
+        ? <String>{}
+        : _collectReferencedImagePaths(
+            items.map(MockOotdItem.fromJson).toList(),
+          );
+    await store.removeUnreferencedImages(paths, protectedDraftPaths: {});
   }
 
   Future<_PreparedExportPayload> _prepareExportPayload({
@@ -252,7 +278,8 @@ class OotdBackupService {
     for (final item in items) {
       final nextImages = <MockOotdImage>[];
       for (final image in item.images) {
-        if (image.sourceType != OotdImageSourceType.file || image.path == null) {
+        if (image.sourceType != OotdImageSourceType.file ||
+            image.path == null) {
           nextImages.add(image);
           continue;
         }
@@ -270,7 +297,9 @@ class OotdBackupService {
           image.path!,
           dataDirectoryPath: dataDirectoryPath,
         );
-        if (p.isAbsolute(relativePath) || relativePath.startsWith('../')) {
+        if (p.isAbsolute(relativePath) ||
+            !relativePath.startsWith('images/') ||
+            relativePath.split('/').contains('..')) {
           relativePath = p.posix.join(
             ootdManagedImagesDirectoryName,
             p.basename(resolvedPath),
@@ -287,10 +316,7 @@ class OotdBackupService {
 
         usedImageFiles[relativePath] = file;
         nextImages.add(
-          MockOotdImage.file(
-            id: image.id,
-            filePath: relativePath,
-          ),
+          MockOotdImage.file(id: image.id, filePath: relativePath),
         );
       }
 
@@ -305,143 +331,324 @@ class OotdBackupService {
     );
   }
 
+  static const _maxZipSize = 500 * 1024 * 1024;
+  static const _maxExpandedSize = 1024 * 1024 * 1024;
+  static const _maxImageSize = 64 * 1024 * 1024;
+  static const _maxManifestSize = 16 * 1024 * 1024;
+  static const _maxEntries = 10000;
+
   Future<_ParsedBackup> _parseBackup(
     String zipPath, {
     required bool includeImageContents,
   }) async {
-    final zipFile = File(zipPath);
-    if (!await zipFile.exists()) {
+    final root = await store.dataDirectoryPath();
+    final generation = 'images/import-${DateTime.now().microsecondsSinceEpoch}';
+    final extractionRoot = includeImageContents
+        ? p.join(root, generation)
+        : null;
+    try {
+      return await Isolate.run(
+        () => _parseArchive(
+          zipPath,
+          extractionRoot: extractionRoot,
+          generation: generation,
+        ),
+      );
+    } catch (_) {
+      if (extractionRoot != null &&
+          p.isWithin(p.join(root, 'images'), extractionRoot)) {
+        try {
+          final staged = Directory(extractionRoot);
+          if (await staged.exists()) await staged.delete(recursive: true);
+        } on FileSystemException {
+          // Startup cleanup retries if a filesystem failure prevented removal.
+        }
+      }
+      rethrow;
+    }
+  }
+
+  static bool _safeImagePath(String name) =>
+      name.startsWith('images/') &&
+      !name.contains('\\') &&
+      !name.contains(':') &&
+      !name.contains('\u0000') &&
+      name
+          .split('/')
+          .every((part) => part.isNotEmpty && part != '.' && part != '..');
+
+  static Stream<List<int>> _compressedChunks(ZipFile entry) async* {
+    final input = entry.rawContent;
+    if (input == null) throw const OotdBackupException('图片内容缺失');
+    while (!input.isEOS) {
+      yield input
+          .readBytes(input.length > 65536 ? 65536 : input.length)
+          .toUint8List();
+    }
+  }
+
+  static Future<Uint8List?> _readEntry(
+    ZipFile entry,
+    int limit, {
+    File? destination,
+  }) async {
+    final source = _compressedChunks(entry);
+    final decoded = entry.compressionMethod == 8
+        ? source.transform(io.ZLibDecoder(raw: true))
+        : source;
+    final bytes = destination == null ? BytesBuilder(copy: false) : null;
+    final output = destination == null
+        ? null
+        : await destination.open(mode: FileMode.write);
+    var length = 0;
+    var crc = 0;
+    try {
+      await for (final chunk in decoded) {
+        length += chunk.length;
+        if (length > limit || length > entry.uncompressedSize!) {
+          throw const OotdBackupException('解压内容超出大小限制');
+        }
+        crc = getCrc32(chunk, crc);
+        if (output != null) {
+          await output.writeFrom(chunk);
+        } else {
+          bytes!.add(chunk);
+        }
+      }
+      if (length != entry.uncompressedSize || crc != entry.crc32) {
+        throw const OotdBackupException('备份文件校验失败');
+      }
+      await output?.flush();
+      return bytes?.takeBytes();
+    } finally {
+      await output?.close();
+    }
+  }
+
+  static Future<_ParsedBackup> _parseArchive(
+    String zipPath, {
+    String? extractionRoot,
+    required String generation,
+  }) async {
+    final file = File(zipPath);
+    if (!await file.exists()) {
       throw const OotdBackupException('没有找到选择的 zip 备份文件');
     }
-
-    const maxZipSize = 500 * 1024 * 1024; // 500 MB
-    final fileSize = await zipFile.length();
-    if (fileSize > maxZipSize) {
-      throw const OotdBackupException('备份文件过大，请检查文件是否正确');
+    final size = await file.length();
+    if (size > _maxZipSize || size < 22) {
+      throw const OotdBackupException('备份文件大小不正确');
     }
-
-    final archive = ZipDecoder().decodeBytes(await zipFile.readAsBytes());
-    final manifestFile = _findArchiveFile(archive, 'manifest.json');
-    if (manifestFile == null) {
-      throw const OotdBackupException('zip 里缺少 manifest.json');
+    // Bound central-directory allocation before archive parses it. Our <500MB
+    // format does not need ZIP64; reject it rather than trusting oversized fields.
+    final handle = await file.open();
+    late Uint8List tail;
+    try {
+      await handle.setPosition(size > 65557 ? size - 65557 : 0);
+      tail = await handle.read(size > 65557 ? 65557 : size);
+    } finally {
+      await handle.close();
     }
-
-    final manifestContent = manifestFile.content;
-    final manifestText = switch (manifestContent) {
-      List<int> bytes => utf8.decode(bytes),
-      String text => text,
-      _ => throw const OotdBackupException('manifest.json 无法读取'),
-    };
-    final manifestJson = jsonDecode(manifestText);
-    if (manifestJson is! Map) {
-      throw const OotdBackupException('manifest.json 格式不正确');
-    }
-
-    final manifest = Map<String, dynamic>.from(manifestJson);
-    final formatVersion = manifest['backupFormatVersion'];
-    if (formatVersion is! int) {
-      throw const OotdBackupException('备份格式版本缺失');
-    }
-    if (formatVersion != ootdBackupFormatVersion) {
-      throw OotdBackupException('暂不支持导入该备份格式版本：$formatVersion');
-    }
-
-    final itemsJson = manifest['items'];
-    final filtersJson = manifest['filters'];
-    final optionsJson = manifest['options'];
-    if (itemsJson is! List || filtersJson is! Map || optionsJson is! Map) {
-      throw const OotdBackupException('备份文件内容不完整');
-    }
-
-    final items = itemsJson
-        .map((item) => MockOotdItem.fromJson(Map<String, dynamic>.from(item)))
-        .toList(growable: false);
-    final filters = OotdFilterState.fromJson(Map<String, dynamic>.from(filtersJson));
-    final options = OotdOptionConfig.fromJson(Map<String, dynamic>.from(optionsJson));
-    final manifestImages = _readManifestImagePaths(manifest['images']);
-    final referencedImages = _collectReferencedImagePaths(items);
-
-    for (final imagePath in referencedImages) {
-      if (!manifestImages.contains(imagePath)) {
-        throw OotdBackupException('manifest.json 缺少图片记录：$imagePath');
+    final data = ByteData.sublistView(tail);
+    var end = -1;
+    for (var i = tail.length - 22; i >= 0; i--) {
+      if (data.getUint32(i, Endian.little) == 0x06054b50 &&
+          i + 22 + data.getUint16(i + 20, Endian.little) == tail.length) {
+        end = i;
+        break;
       }
     }
-
-    final imageContents = <String, Uint8List>{};
-    if (includeImageContents) {
-      for (final imagePath in referencedImages) {
-        final archiveFile = _findArchiveFile(archive, imagePath);
-        if (archiveFile == null) {
-          throw OotdBackupException('zip 内缺少图片文件：$imagePath');
+    if (end < 0 ||
+        data.getUint16(end + 10, Endian.little) > _maxEntries ||
+        data.getUint32(end + 12, Endian.little) > _maxManifestSize ||
+        data.getUint32(end + 16, Endian.little) >= size ||
+        data.getUint16(end + 4, Endian.little) != 0) {
+      throw const OotdBackupException('ZIP 目录无效或超出限制');
+    }
+    final input = InputFileStream(zipPath);
+    try {
+      final directory = ZipDirectory.read(input);
+      if (directory.fileHeaders.length > _maxEntries) {
+        throw const OotdBackupException('ZIP 条目过多');
+      }
+      final entries = <String, ZipFile>{};
+      var total = 0;
+      for (final header in directory.fileHeaders) {
+        final entry = header.file!;
+        final name = entry.filename;
+        final mode = (header.externalFileAttributes ?? 0) >> 16;
+        if (name != 'manifest.json' && !_safeImagePath(name)) {
+          throw const OotdBackupException('备份包含非法路径');
         }
-
-        final content = archiveFile.content;
-        final bytes = switch (content) {
-          Uint8List typedBytes => typedBytes,
-          List<int> listBytes => Uint8List.fromList(listBytes),
-          _ => throw OotdBackupException('图片文件无法读取：$imagePath'),
-        };
-        imageContents[imagePath] = bytes;
+        if ((mode & 0xF000) == 0xA000 ||
+            entry.flags & 1 != 0 ||
+            ![0, 8].contains(entry.compressionMethod) ||
+            entries.containsKey(name.toLowerCase())) {
+          throw const OotdBackupException('备份包含重复、加密或不支持的文件');
+        }
+        final entrySize = entry.uncompressedSize ?? -1;
+        final limit = name == 'manifest.json'
+            ? _maxManifestSize
+            : _maxImageSize;
+        total += entrySize;
+        if (entrySize < 0 || entrySize > limit || total > _maxExpandedSize) {
+          throw const OotdBackupException('解压内容超出大小限制');
+        }
+        entries[name.toLowerCase()] = entry;
       }
+      final manifestEntry = entries['manifest.json'];
+      if (manifestEntry == null) {
+        throw const OotdBackupException('zip 里缺少 manifest.json');
+      }
+      final manifest = jsonDecode(
+        utf8.decode((await _readEntry(manifestEntry, _maxManifestSize))!),
+      );
+      if (manifest is! Map ||
+          manifest['backupFormatVersion'] != ootdBackupFormatVersion) {
+        throw const OotdBackupException('不支持的备份格式版本');
+      }
+      if (manifest['items'] is! List ||
+          manifest['filters'] is! Map ||
+          manifest['options'] is! Map ||
+          manifest['images'] is! List) {
+        throw const OotdBackupException('备份内容不完整');
+      }
+      final ids = <String>{};
+      final dates = <String>{};
+      for (final raw in manifest['items'] as List) {
+        if (raw is! Map ||
+            raw['id'] is! String ||
+            (raw['id'] as String).trim().isEmpty ||
+            raw['dateLabel'] is! String ||
+            (raw['dateLabel'] as String).trim().isEmpty ||
+            raw['images'] is! List ||
+            (raw['images'] as List).isEmpty ||
+            (raw['images'] as List).length > 4) {
+          throw const OotdBackupException('穿搭记录必须包含有效日期和 1–4 张图片');
+        }
+        final date = readDateLabel(raw['dateLabel']);
+        final parsedDate = DateTime.tryParse(date);
+        if (parsedDate == null ||
+            formatDateLabel(parsedDate) != date ||
+            !ids.add(raw['id'] as String) ||
+            !dates.add(date)) {
+          throw const OotdBackupException('备份含重复记录、重复日期或无效日期');
+        }
+      }
+      final items = (manifest['items'] as List)
+          .map((item) => MockOotdItem.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+      final filters = OotdFilterState.fromJson(
+        Map<String, dynamic>.from(manifest['filters']),
+      );
+      final options = OotdOptionConfig.fromJson(
+        Map<String, dynamic>.from(manifest['options']),
+      );
+      final paths = <String>{};
+      for (final path in manifest['images'] as List) {
+        if (path is! String ||
+            !_safeImagePath(path) ||
+            !paths.add(path) ||
+            !entries.containsKey(path.toLowerCase())) {
+          throw const OotdBackupException('图片目录不完整或含非法路径');
+        }
+      }
+      final referenced = <String>{};
+      for (final item in items) {
+        for (final image in item.images) {
+          if (image.sourceType == OotdImageSourceType.file) {
+            if (image.path == null || !paths.contains(image.path)) {
+              throw const OotdBackupException('记录引用的图片缺失');
+            }
+            referenced.add(image.path!);
+          }
+        }
+      }
+      final imagePaths = <String, String>{};
+      if (extractionRoot != null) {
+        await Directory(extractionRoot).create(recursive: true);
+      }
+      var imageIndex = 0;
+      for (final path in paths) {
+        final entry = entries[path.toLowerCase()]!;
+        final name = '${imageIndex++}${p.posix.extension(path)}';
+        final output = extractionRoot == null
+            ? null
+            : File(p.join(extractionRoot, name));
+        // Preview validates size/CRC too; discard chunks instead of retaining images.
+        if (output == null) {
+          await _verifyEntry(entry, _maxImageSize);
+        } else {
+          await _readEntry(entry, _maxImageSize, destination: output);
+          imagePaths[path] = '$generation/$name';
+        }
+      }
+      return _ParsedBackup(
+        preview: OotdBackupPreview(
+          zipPath: zipPath,
+          fileName: p.basename(zipPath),
+          directoryPath: p.dirname(zipPath),
+          itemCount: items.length,
+          ootdImageCount: items.fold(
+            0,
+            (sum, item) => sum + item.images.length,
+          ),
+          imageCount: paths.length,
+          exportedAt: manifest['exportedAt'] as String? ?? '',
+          appVersion: manifest['appVersion'] as String? ?? '',
+          backupFormatVersion: ootdBackupFormatVersion,
+        ),
+        items: items,
+        filters: filters,
+        options: options,
+        imageContents: imagePaths,
+      );
+    } finally {
+      await input.close();
     }
+  }
 
-    return _ParsedBackup(
-      preview: OotdBackupPreview(
-        zipPath: zipPath,
-        fileName: p.basename(zipPath),
-        directoryPath: p.dirname(zipPath),
-        itemCount: items.length,
-        ootdImageCount: _countOotdImages(items),
-        imageCount: manifestImages.length,
-        exportedAt: manifest['exportedAt'] as String? ?? '',
-        appVersion: manifest['appVersion'] as String? ?? '',
-        backupFormatVersion: formatVersion,
-      ),
-      items: items,
-      filters: filters,
-      options: options,
-      imageContents: imageContents,
-    );
+  static Future<void> _verifyEntry(ZipFile entry, int limit) async {
+    final source = _compressedChunks(entry);
+    final decoded = entry.compressionMethod == 8
+        ? source.transform(io.ZLibDecoder(raw: true))
+        : source;
+    var length = 0;
+    var crc = 0;
+    await for (final chunk in decoded) {
+      length += chunk.length;
+      if (length > limit || length > entry.uncompressedSize!) {
+        throw const OotdBackupException('解压内容超出大小限制');
+      }
+      crc = getCrc32(chunk, crc);
+    }
+    if (length != entry.uncompressedSize || crc != entry.crc32) {
+      throw const OotdBackupException('备份文件校验失败');
+    }
   }
 
   Future<OotdImportedSnapshot> _applyParsedBackup(_ParsedBackup parsed) async {
-    final dataDirectoryPath = await store.dataDirectoryPath();
-    final normalizedItems = normalizeItemsForOptions(
-      normalizeItemsForStorageRoot(parsed.items, dataDirectoryPath),
-      parsed.options,
+    final items = normalizeItemsForOptions([
+      for (final item in parsed.items)
+        item.copyWith(
+          images: [
+            for (final image in item.images)
+              image.sourceType == OotdImageSourceType.file
+                  ? MockOotdImage.file(
+                      id: image.id,
+                      filePath: parsed.imageContents[image.path]!,
+                    )
+                  : image,
+          ],
+        ),
+    ], parsed.options);
+    await store.saveSnapshot(
+      items: items.map((item) => item.toJson()).toList(),
+      filters: parsed.filters.toJson(),
+      options: parsed.options.toJson(),
     );
-    final imagesDirectory = Directory(
-      p.join(dataDirectoryPath, ootdManagedImagesDirectoryName),
-    );
-
-    if (await imagesDirectory.exists()) {
-      await imagesDirectory.delete(recursive: true);
-    }
-    await imagesDirectory.create(recursive: true);
-
-    for (final entry in parsed.imageContents.entries) {
-      final sanitizedKey = entry.key.replaceAll('/', Platform.pathSeparator);
-      final resolvedPath = p.normalize(p.join(dataDirectoryPath, sanitizedKey));
-      final normalizedRoot = p.normalize(dataDirectoryPath);
-      if (!resolvedPath.startsWith(normalizedRoot + Platform.pathSeparator) &&
-          resolvedPath != normalizedRoot) {
-        throw const OotdBackupException('备份文件包含非法路径，已中止导入');
-      }
-
-      final targetFile = File(resolvedPath);
-      await targetFile.parent.create(recursive: true);
-      await targetFile.writeAsBytes(entry.value, flush: true);
-    }
-
-    await store.saveItemsJson(
-      normalizedItems.map((item) => item.toJson()).toList(growable: false),
-    );
-    await store.saveFiltersJson(parsed.filters.toJson());
-    await store.saveOptionsJson(parsed.options.toJson());
-
     return OotdImportedSnapshot(
       preview: parsed.preview,
-      items: normalizedItems,
+      items: items,
       filters: parsed.filters,
       options: parsed.options,
     );
@@ -479,17 +686,6 @@ class OotdBackupService {
     };
   }
 
-  Set<String> _readManifestImagePaths(dynamic value) {
-    if (value is! List) {
-      return const {};
-    }
-
-    return value
-        .whereType<String>()
-        .map((item) => item.replaceAll('\\', '/'))
-        .toSet();
-  }
-
   String _dedupeRelativePath(String originalPath, Iterable<String> usedPaths) {
     final extension = p.extension(originalPath);
     final baseName = extension.isEmpty
@@ -508,26 +704,25 @@ class OotdBackupService {
     return items.fold(0, (sum, item) => sum + item.images.length);
   }
 
-  Future<void> _clearExistingZipFiles(Directory directory) async {
+  Future<void> _clearExistingZipFiles(
+    Directory directory, {
+    required String except,
+  }) async {
     if (!await directory.exists()) {
       return;
     }
 
     final entries = await directory.list().toList();
     for (final entry in entries) {
-      if (entry is File && p.extension(entry.path).toLowerCase() == '.zip') {
-        await entry.delete();
+      if (entry is File &&
+          entry.path != except &&
+          p.extension(entry.path).toLowerCase() == '.zip') {
+        try {
+          await entry.delete();
+        } on FileSystemException {
+          /* A valid new backup already exists. */
+        }
       }
     }
-  }
-
-  ArchiveFile? _findArchiveFile(Archive archive, String name) {
-    for (final file in archive.files) {
-      if (file.name == name) {
-        return file;
-      }
-    }
-
-    return null;
   }
 }

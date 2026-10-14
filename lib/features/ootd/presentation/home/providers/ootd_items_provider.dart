@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'ootd_mutation_queue.dart';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,12 +41,13 @@ class OotdItemsNotifier extends Notifier<List<MockOotdItem>> {
   @override
   List<MockOotdItem> build() => ref.watch(initialOotdItemsProvider);
 
-  void replaceAll(List<MockOotdItem> items) {
-    state = List<MockOotdItem>.unmodifiable(items);
-    _persist();
-  }
+  Future<void> replaceAll(List<MockOotdItem> items) =>
+      ref.read(ootdMutationQueueProvider).run(() async {
+        final next = List<MockOotdItem>.unmodifiable(items);
+        await _commit(next);
+      });
 
-  void updateItem({
+  Future<void> updateItem({
     required String id,
     required List<MockOotdImage> images,
     required String dateLabel,
@@ -56,8 +57,10 @@ class OotdItemsNotifier extends Notifier<List<MockOotdItem>> {
     required String tone,
     required String rating,
     required Map<String, String> extraSelections,
-  }) {
-    state = [
+  }) => ref.read(ootdMutationQueueProvider).run(() async {
+    if (hasItemOnDate(dateLabel, excludingId: id)) throw StateError('这一天已经有穿搭');
+
+    final next = [
       for (final item in state)
         if (item.id == id)
           item.copyWith(
@@ -73,10 +76,10 @@ class OotdItemsNotifier extends Notifier<List<MockOotdItem>> {
         else
           item,
     ];
-    _persist();
-  }
+    await _commit(next);
+  });
 
-  void addItem({
+  Future<void> addItem({
     required List<MockOotdImage> images,
     required String dateLabel,
     required String preference,
@@ -85,7 +88,9 @@ class OotdItemsNotifier extends Notifier<List<MockOotdItem>> {
     required String tone,
     required String rating,
     required Map<String, String> extraSelections,
-  }) {
+  }) => ref.read(ootdMutationQueueProvider).run(() async {
+    if (hasItemOnDate(dateLabel)) throw StateError('这一天已经有穿搭');
+
     final item = MockOotdItem(
       id: _nextItemId(),
       images: List.unmodifiable(images),
@@ -98,9 +103,9 @@ class OotdItemsNotifier extends Notifier<List<MockOotdItem>> {
       extraSelections: Map<String, String>.unmodifiable(extraSelections),
     );
 
-    state = [item, ...state];
-    _persist();
-  }
+    final next = [item, ...state];
+    await _commit(next);
+  });
 
   bool hasItemOnDate(String dateLabel, {String? excludingId}) {
     for (final item in state) {
@@ -111,77 +116,80 @@ class OotdItemsNotifier extends Notifier<List<MockOotdItem>> {
     return false;
   }
 
-  void deleteItem(String id) {
-    state = state.where((item) => item.id != id).toList(growable: false);
-    _persist();
-  }
+  Future<void> deleteItem(String id) => ref.read(ootdMutationQueueProvider).run(
+    () async {
+      final next = state.where((item) => item.id != id).toList(growable: false);
+      await _commit(next);
+    },
+  );
 
-  void renameOptionValueByKey(String key, String oldValue, String newValue) {
-    state = [
+  Future<void> renameOptionValueByKey(
+    String key,
+    String oldValue,
+    String newValue,
+  ) => ref.read(ootdMutationQueueProvider).run(() async {
+    final next = [
       for (final item in state)
-        item.valueOf(key) == oldValue ? item.copyWithValue(key, newValue) : item,
+        item.valueOf(key) == oldValue
+            ? item.copyWithValue(key, newValue)
+            : item,
     ];
-    _persist();
-  }
+    await _commit(next);
+  });
 
-  void replaceDeletedOptionValueByKey(
+  Future<void> replaceDeletedOptionValueByKey(
     String key,
     String removedValue,
     String fallbackValue,
-  ) {
-    state = [
+  ) => ref.read(ootdMutationQueueProvider).run(() async {
+    final next = [
       for (final item in state)
         item.valueOf(key) == removedValue
             ? item.copyWithValue(key, fallbackValue)
             : item,
     ];
-    _persist();
+    await _commit(next);
+  });
+
+  Future<void> assignExtraGroupValue(String key, String defaultValue) =>
+      ref.read(ootdMutationQueueProvider).run(() async {
+        final next = [
+          for (final item in state)
+            item.copyWith(
+              extraSelections: {
+                ...item.extraSelections,
+                key: item.extraSelections[key] ?? defaultValue,
+              },
+            ),
+        ];
+        await _commit(next);
+      });
+
+  Future<void> removeExtraGroupValue(String key) =>
+      ref.read(ootdMutationQueueProvider).run(() async {
+        final next = [
+          for (final item in state)
+            item.copyWith(
+              extraSelections: {
+                for (final entry in item.extraSelections.entries)
+                  if (entry.key != key) entry.key: entry.value,
+              },
+            ),
+        ];
+        await _commit(next);
+      });
+
+  void acceptPersisted(List<MockOotdItem> items) {
+    state = List.unmodifiable(items);
   }
 
-  void assignExtraGroupValue(String key, String defaultValue) {
-    state = [
-      for (final item in state)
-        item.copyWith(
-          extraSelections: {
-            ...item.extraSelections,
-            key: item.extraSelections[key] ?? defaultValue,
-          },
-        ),
-    ];
-    _persist();
-  }
-
-  void removeExtraGroupValue(String key) {
-    state = [
-      for (final item in state)
-        item.copyWith(
-          extraSelections: {
-            for (final entry in item.extraSelections.entries)
-              if (entry.key != key) entry.key: entry.value,
-          },
-        ),
-    ];
-    _persist();
-  }
-
-  void _persist() {
-    unawaited(
-      Future(() async {
-        try {
-          await ref
-              .read(ootdLocalStoreProvider)
-              .saveItemsJson(
-                state.map((item) => item.toJson()).toList(growable: false),
-              );
-        } catch (e) {
-          assert(() {
-            // ignore: avoid_print
-            print('OotdItemsNotifier._persist failed: $e');
-            return true;
-          }());
-        }
-      }),
-    );
+  Future<void> _commit(List<MockOotdItem> next) async {
+    await ref
+        .read(ootdLocalStoreProvider)
+        .saveItemsJson(
+          next.map((item) => item.toJson()).toList(growable: false),
+        );
+    if (ref.mounted) state = List.unmodifiable(next);
   }
 
   String _nextItemId() {

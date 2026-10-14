@@ -35,36 +35,44 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.41.6"
           cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Analyze
+        run: flutter analyze
+
       - name: Run tests
         run: flutter test
 
-      - name: Generate Android signing files
+      - name: Restore fixed Android signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          mkdir -p android/keystore
-
-          keytool -genkeypair \
-            -v \
-            -keystore android/keystore/release.jks \
-            -storetype JKS \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -alias "aowugong" \
-            -storepass "aowugong" \
-            -keypass "aowugong" \
-            -dname "CN=howie110, OU=aowugong-ootd, O=howie110, L=Unknown, ST=Unknown, C=CN"
-
-          {
-            echo "storeFile=keystore/release.jks"
-            echo "storePassword=aowugong"
-            echo "keyAlias=aowugong"
-            echo "keyPassword=aowugong"
-          } > android/key.properties
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          names = ['ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
+          missing = [name for name in names if not os.environ.get(name)]
+          if missing:
+              raise SystemExit('Missing fixed signing secrets: ' + ', '.join(missing))
+          key = Path('android/keystore/release.jks')
+          key.parent.mkdir(parents=True, exist_ok=True)
+          key.write_bytes(base64.b64decode(os.environ[names[0]], validate=True))
+          key.chmod(0o600)
+          def prop(value):
+              return ''.join('\\u%04x' % ord(c) for c in value)
+          values = {'storeFile': 'keystore/release.jks', 'storePassword': os.environ[names[1]],
+                    'keyAlias': os.environ[names[2]], 'keyPassword': os.environ[names[3]]}
+          config = Path('android/key.properties')
+          config.write_text(''.join(k + '=' + prop(v) + '\n' for k, v in values.items()), encoding='ascii')
+          config.chmod(0o600)
+          PY
 
       - name: Build release APK
         run: |
@@ -104,3 +112,7 @@ jobs:
           else
             gh release create "$TAG_NAME" "$APK_PATH" --title "$TAG_NAME" --generate-notes
           fi
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f android/key.properties android/keystore/release.jks
